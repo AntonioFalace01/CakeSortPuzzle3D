@@ -5,3 +5,6 @@ class Button:
         self.rect = pygame.Rect(x,y,width,height)
         self.color = (0, 128, 255)
         self.text= ""
+
+    def draw(self, window):
+        pygame.draw.rect(window, self.color, self.rect)
