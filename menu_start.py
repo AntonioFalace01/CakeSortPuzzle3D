@@ -1,8 +1,5 @@
 import pygame
 from table import Table
-
-
-
 from button import Button
 
 
