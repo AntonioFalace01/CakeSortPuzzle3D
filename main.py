@@ -4,16 +4,20 @@ from menu_start import MenuStart
 
 pygame.init()
 pygame.display.set_caption("Cake Sort Puzzle")
+fps = 60
 #pygame.display.set_icon(pygame.image.load("Sprites/icon.png")) #da metter l'icona che vogliamo
 window = pygame.display.set_mode((700, 500))
 img_menu_start = pygame.image.load("Sprites/menu_start.png")
 sfondo_menu_start = pygame.transform.scale(img_menu_start, (700, 500))
 
 def main(window):
+    clock = pygame.time.Clock()
+
     run = True
     stato = "menu_start"
     menu_start = MenuStart()
     while run:
+        clock.tick(fps)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
