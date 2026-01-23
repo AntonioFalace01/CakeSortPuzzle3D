@@ -58,7 +58,8 @@ def generate_block():
     plates = [generate_random_plate()]
     if random.random() < 0.5:
         plates.append(generate_random_plate())
-    orientation = random.choice(["H","V"])
+    orientation = random.choice(["H","V"]) if len(plates) > 1 else "NONE"
+
     return {"plates": plates, "orientation": orientation}
 
 def main():
