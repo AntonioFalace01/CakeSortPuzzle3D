@@ -9,8 +9,8 @@ class MenuStart:
         w_button = 190
         h_button = 90
         self.table = Table(100,100)
-        self.button_start= Button(x_pos_button,220, w_button, h_button,"Sprites/button_start.png")
-        self.button_quit= Button(x_pos_button,280, w_button, h_button,"Sprites/button_start.png")
+        self.button_start= Button(x_pos_button, 220, w_button, h_button, "Sprites/Button/button_start.png")
+        self.button_quit= Button(x_pos_button, 280, w_button, h_button, "Sprites/Button/button_start.png")
 
     def draw(self, window):
         #self.table.draw(window)

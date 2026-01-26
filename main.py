@@ -8,9 +8,9 @@ fps = 60
 #pygame.display.set_icon(pygame.image.load("Sprites/icon.png")) #da metter l'icona che vogliamo
 window = pygame.display.set_mode((700, 500))
 try:
-    img_menu_start = pygame.image.load("Sprites/menu_start.png")
+    img_menu_start = pygame.image.load("Sprites/Background/menu_start.png")
     sfondo_menu_start = pygame.transform.scale(img_menu_start, (700, 500))
-    img_game_panel = pygame.image.load("Sprites/game_panel.png")
+    img_game_panel = pygame.image.load("Sprites/Background/game_panel.png")
     sfondo_game_panel = pygame.transform.scale(img_game_panel, (700, 500))
 except FileNotFoundError:
     #se manca uno dei file immagine stampa errore e usa sfondo vuoto

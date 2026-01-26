@@ -9,7 +9,7 @@ class Game:
         w_button = 50
         h_button = 50
         self.button_pause = Button(x_pos_button, 20, w_button, h_button,
-                                   "sprites/button_pause.png")
+                                   "Sprites/Button/button_pause.png")
 
     def draw(self, window):
         self.button_pause.draw(window)
