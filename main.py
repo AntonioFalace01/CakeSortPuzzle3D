@@ -1,15 +1,20 @@
 import  pygame
-from button import Button
-from menu_start import MenuStart
+from game_panel import Game
+from menu_start import MenuStart, MenuPause
 
-'''
 pygame.init()
 pygame.display.set_caption("Cake Sort Puzzle")
 fps = 60
 #pygame.display.set_icon(pygame.image.load("Sprites/icon.png")) #da metter l'icona che vogliamo
 window = pygame.display.set_mode((700, 500))
-img_menu_start = pygame.image.load("Sprites/menu_start.png")
-sfondo_menu_start = pygame.transform.scale(img_menu_start, (700, 500))
+try:
+    img_menu_start = pygame.image.load("Sprites/menu_start.png")
+    sfondo_menu_start = pygame.transform.scale(img_menu_start, (700, 500))
+    img_game_panel = pygame.image.load("Sprites/game_panel.png")
+    sfondo_game_panel = pygame.transform.scale(img_game_panel, (700, 500))
+except FileNotFoundError:
+    #se manca uno dei file immagine stampa errore e usa sfondo vuoto
+    print("ERRORE: Manca sprites/menu.png")
 
 def main(window):
     clock = pygame.time.Clock()
@@ -17,17 +22,52 @@ def main(window):
     run = True
     stato = "menu_start"
     menu_start = MenuStart()
+    game_panel= Game()
+    menu_pause = MenuPause()
     while run:
         clock.tick(fps)
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
                 break
+
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                mouse_pos = event.pos
+                if stato == "menu_start":
+                    nuovo_stato = menu_start.gest_eventi(mouse_pos)
+                    if nuovo_stato == "game":
+                        stato = "game"
+                    elif nuovo_stato == "quit_game":
+                        run = False
+                        break
+                elif stato == "game":
+                    nuovo_stato = game_panel.gest_eventi(mouse_pos)
+                    if nuovo_stato == "pause_game":
+                        stato = "pause_game"
+                elif stato == "pause_game":
+                    nuovo_stato = menu_pause.gest_eventi(mouse_pos)
+                    if nuovo_stato == "resume_game":
+                        stato = "game"
+                    elif nuovo_stato == "quit_game":
+                        run = False
+                        break
+
+
+
+
+
         if stato == "menu_start":
             window.blit(sfondo_menu_start,(0,0))
             menu_start.draw(window)
-        pygame.display.update()
 
+        elif stato== "game":
+            window.blit (sfondo_game_panel,(0,0))
+            game_panel.draw(window)
+
+        elif stato == "pause_game":
+            window.blit(sfondo_menu_start,(0,0))
+            menu_start.draw(window)
+        pygame.display.update()
     pygame.quit()
     quit()
 
@@ -36,9 +76,9 @@ def main(window):
 #condizione molto importante, serve per accertarsi di richiamare esattamente la funzione main, del file con nome main.
 if __name__ == "__main__":
     main(window)
+
+
 '''
-
-
 from cake_sort_engine import GameState, Plate, Piece
 import random
 
@@ -110,3 +150,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+'''

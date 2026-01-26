@@ -19,7 +19,21 @@ class MenuStart:
 
     def gest_eventi(self, posizione_mouse):
         if self.button_start.is_clicked(posizione_mouse):
-            return "start_game"
+            return "game"
         if self.button_quit.is_clicked(posizione_mouse):
             return "quit_game"
         return None
+
+class MenuPause(MenuStart):
+    def __init__(self):
+        super().__init__()
+
+
+    def gest_eventi(self, posizione_mouse):
+        if self.button_start.is_clicked(posizione_mouse):
+            return "resume_game"
+        if self.button_quit.is_clicked(posizione_mouse):
+            return "quit_game"
+        return None
+
+
