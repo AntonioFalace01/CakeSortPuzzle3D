@@ -13,6 +13,8 @@ try:
     sfondo_menu_start = pygame.transform.scale(img_menu_start, (700, 500))
     img_game_panel = pygame.image.load("Sprites/Background/game_panel.png")
     sfondo_game_panel = pygame.transform.scale(img_game_panel, (700, 500))
+    img_menu_pause = pygame.image.load("Sprites/Background/menu_pausa.png")
+    sfondo_menu_pause = pygame.transform.scale(img_menu_pause, (700, 500))
 except FileNotFoundError:
     #se manca uno dei file immagine stampa errore e usa sfondo vuoto
     print("ERRORE: Manca sprites/menu.png")
@@ -68,8 +70,8 @@ def main(window):
             game_panel.draw(window)
 
         elif stato == "pause_game":
-            window.blit(sfondo_menu_start,(0,0))
-            menu_start.draw(window)
+            window.blit(sfondo_menu_pause,(0,0))
+            menu_pause.draw(window)
         pygame.display.update()
     pygame.quit()
     quit()

@@ -8,14 +8,13 @@ class Table:
             self,
             x,
             y,
-            righe=6,
-            colonne=8,
+            righe=5,
+            colonne=4,
             larg_cella=60,
             alt_cella=60,
             padding=12,
             seme=42,
             mostra_griglia=False,
-            mostra_gambe=True,
             stile_legno="caldo",  # Ho impostato un nuovo stile "caldo" di default
     ):
         self.x = x
@@ -26,7 +25,6 @@ class Table:
         self.alt_cella = alt_cella
         self.padding = padding
         self.mostra_griglia = mostra_griglia
-        self.mostra_gambe = mostra_gambe
         self._rng = random.Random(seme)
 
         self.w = self.colonne * self.larg_cella + 2 * self.padding
@@ -57,8 +55,6 @@ class Table:
 
     def draw(self, screen):
         self._disegna_ombra(screen)
-        if self.mostra_gambe:
-            self._disegna_gambe(screen)
         screen.blit(self.surface, (self.x, self.y))
 
     def get_cell_at(self, pos):
@@ -174,19 +170,3 @@ class Table:
             pygame.draw.rect(shadow, (0, 0, 0, a), base_rect.inflate(i * 2, i * 2), border_radius=raggio)
         screen.blit(shadow, (self.x + offset, self.y + offset))
 
-    def _disegna_gambe(self, screen):
-        gambe_col = (self._edge[0] - 10, self._edge[1] - 10, self._edge[2] - 10)
-        spessore, altezza, raggio = 16, 60, 6
-        tx, ty, tw, th = self.x, self.y, self.w, self.h
-        pos_gambe = [
-            (tx + 20, ty + th - 10), (tx + tw - 20 - spessore, ty + th - 10),
-            (tx + tw // 2 - 50, ty + th - 10), (tx + tw // 2 + 50 - spessore, ty + th - 10)
-        ]
-        for (gx, gy) in pos_gambe:
-            g_rect = pygame.Rect(gx, gy, spessore, altezza)
-            ombra = pygame.Surface((spessore + 8, altezza + 8), pygame.SRCALPHA)
-            for i in range(6, 0, -1):
-                pygame.draw.rect(ombra, (0, 0, 0, 20 * i), ombra.get_rect().inflate(i, i), border_radius=raggio)
-            screen.blit(ombra, (gx + 2, gy + 2))
-            pygame.draw.rect(screen, gambe_col, g_rect, border_radius=raggio)
-            pygame.draw.rect(screen, (255, 255, 255, 30), (gx + 2, gy, 4, altezza), border_radius=raggio)
