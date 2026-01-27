@@ -1,6 +1,7 @@
 import  pygame
 from game_panel import Game
 from menu_start import MenuStart, MenuPause
+from particelle import GestoreParticelle
 
 pygame.init()
 pygame.display.set_caption("Cake Sort Puzzle")
@@ -24,6 +25,7 @@ def main(window):
     menu_start = MenuStart()
     game_panel= Game()
     menu_pause = MenuPause()
+    particelle = GestoreParticelle(60, 700, 500)
     while run:
         clock.tick(fps)
         for event in pygame.event.get():
@@ -58,6 +60,7 @@ def main(window):
 
         if stato == "menu_start":
             window.blit(sfondo_menu_start,(0,0))
+            particelle.update_and_draw(window)
             menu_start.draw(window)
 
         elif stato== "game":
