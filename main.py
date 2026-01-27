@@ -1,5 +1,6 @@
 import  pygame
 from button import Button
+from cake_sort_engine import generate_three_options, GameState, Piece, Plate
 from menu_start import MenuStart
 
 '''
@@ -35,74 +36,36 @@ if __name__ == "__main__":
 '''
 
 
-from cake_sort_engine import GameState, Plate, Piece
-import random
+if __name__ == "__main__":
+    game = GameState(5, 4)
 
-TYPES = ["C","S","V"]
-
-def generate_random_plate():
-    n = random.randint(1,3)
-    pieces = []
-    for _ in range(n):
-        tipo = random.choice(TYPES)
-        found = False
-        for p in pieces:
-            if p.tipo == tipo:
-                p.count += 1
-                found = True
-        if not found:
-            pieces.append(Piece(tipo,1))
-    return Plate(pieces)
-
-def generate_block():
-    plates = [generate_random_plate()]
-    if random.random() < 0.5:
-        plates.append(generate_random_plate())
-    orientation = random.choice(["H","V"]) if len(plates) > 1 else "NONE"
-
-    return {"plates": plates, "orientation": orientation}
-
-def main():
-    rows, cols = 4,4
-    game = GameState(rows, cols)
-    print("Benvenuto al Cake Sort Puzzle (terminal edition)!\n")
-    game.print_grid()
+    options = generate_three_options()
 
     while True:
-        block = generate_block()
-        block_len = len(block["plates"])
-        orientation = block["orientation"]
-
-        print(f"Blocco orientamento: {orientation}")
-        for idx, plate in enumerate(block["plates"]):
-            s = " + ".join([f"{p.tipo}{p.count}" for p in plate.pieces])
-            print(f"Piatto {idx}: {s}")
-
-        moves = game.valid_moves(block_length=block_len, orientation=orientation)
-        if not moves:
-            print("Nessuna mossa valida! Game over.")
-            break
-
-        print("\nMosse possibili:")
-        for idx, (r,c) in enumerate(moves):
-            print(f"{idx}: ({r},{c})")
-
-        while True:
-            try:
-                choice = int(input(f"Scegli la cella iniziale per piazzare il blocco [0-{len(moves)-1}]: "))
-                if 0 <= choice < len(moves):
-                    r,c = moves[choice]
-                    if game.place_block(block, r, c):
-                        break
-            except ValueError:
-                pass
-            print("Scelta non valida, riprova.")
-
         game.print_grid()
 
-        if game.is_win():
-            print("Hai completato tutte le torte! 🎉")
-            break
+        # se finite, rigenera
+        if not options:
+            options = generate_three_options()
 
-if __name__ == "__main__":
-    main()
+        print("Opzioni disponibili:")
+        for i, opt in enumerate(options):
+            if len(opt["plates"]) == 1:
+                print(f"{i}) Singolo: {opt['plates'][0]}")
+            else:
+                print(f"{i}) Blocco {opt['orientation']}:")
+                for p in opt["plates"]:
+                    print("   ", p)
+
+        choice = int(input(f"Scegli opzione (0-{len(options)-1}): "))
+        r = int(input("Riga: "))
+        c = int(input("Colonna: "))
+
+        selected = options[choice]
+
+        if game.place_block(selected, r, c):
+            options.pop(choice)
+        else:
+            print("Mossa non valida!\n")
+
+
