@@ -6,7 +6,7 @@ from button import Button
 from cake_sort_engine import generate_three_options, GameState, Piece, Plate
 from menu_start import MenuStart
 
-'''
+
 pygame.init()
 pygame.display.set_caption("Cake Sort Puzzle")
 fps = 60
@@ -120,5 +120,5 @@ if __name__ == "__main__":
             options.pop(choice)
         else:
             print("Mossa non valida!\n")
-
+'''
 

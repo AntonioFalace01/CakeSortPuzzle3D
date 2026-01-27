@@ -5,17 +5,17 @@ import random
 
 class Table:
     def __init__(
-            self,
-            x,
-            y,
-            righe=5,
-            colonne=4,
-            larg_cella=60,
-            alt_cella=60,
-            padding=12,
-            seme=42,
-            mostra_griglia=False,
-            stile_legno="caldo",  # Ho impostato un nuovo stile "caldo" di default
+        self,
+        x,
+        y,
+        righe=5,
+        colonne=4,
+        larg_cella=60,
+        alt_cella=60,
+        padding=12,
+        seme=42,
+        mostra_griglia=False,
+        stile_legno="quercia",
     ):
         self.x = x
         self.y = y
@@ -30,27 +30,25 @@ class Table:
         self.w = self.colonne * self.larg_cella + 2 * self.padding
         self.h = self.righe * self.alt_cella + 2 * self.padding
 
-        # ================================================================= #
-        # ===== COLORI DEL LEGNO MODIFICATI PER UN ASPETTO PIÙ CALDO  ===== #
-        # ================================================================= #
-        # I colori sono in formato (R, G, B).
+        # =========================================== #
+        # ===== COLORI LEGNO DI QUERCIA ============= #
+        # =========================================== #
+        if stile_legno == "quercia":
+            self._base = (210, 180, 140)      # Tan chiaro, base quercia
+            self._dark = (196, 156, 90)       # Marrone dorato, gradienti
+            self._grain = (160, 120, 60)      # Venature calde
+            self._edge = (139, 105, 60)       # Bordo più scuro
+        else:
+            # fallback legno caldo
+            self._base = (210, 180, 140)
+            self._dark = (184, 134, 11)
+            self._grain = (160, 120, 80)
+            self._edge = (139, 69, 19)
 
-        if stile_legno == "scuro":
-            # Un legno scuro, tipo noce
-            self._base = (139, 69, 19)  # Marrone "SaddleBrown"
-            self._dark = (101, 67, 33)  # Marrone più scuro
-            self._grain = (80, 50, 20, 45)  # Venature scure e semi-trasparenti
-            self._edge = (61, 43, 31)  # Bordo molto scuro
-        else:  # Stile "caldo" (default)
-            # Un legno chiaro e caldo, tipo rovere o pino
-            self._base = (210, 180, 140)  # Marrone chiaro "Tan"
-            self._dark = (184, 134, 11)  # Tonalità più scura "DarkGoldenrod"
-            self._grain = (139, 90, 43, 35)  # Venature marroni semi-trasparenti
-            self._edge = (139, 69, 19)  # Bordo marrone più definito
+        self._grid_color = self._edge
 
-        self._grid_color = (self._edge[0], self._edge[1], self._edge[2], 80)
-
-        self.surface = pygame.Surface((self.w, self.h), pygame.SRCALPHA)
+        # Surface OPACA
+        self.surface = pygame.Surface((self.w, self.h))
         self._ridisegna()
 
     def draw(self, screen):
@@ -67,7 +65,7 @@ class Table:
 
     def _ridisegna(self):
         s = self.surface
-        s.fill((0, 0, 0, 0))
+        s.fill(self._base)
         pygame.draw.rect(s, self._base, s.get_rect(), border_radius=16)
         self._gradiente_legno(s)
         self._assi_verticali(s)
@@ -78,58 +76,30 @@ class Table:
         self._bordo(s)
         self._highlight_superiore(s)
 
-    # ===================================================================== #
-    # ===== COLORI DELLE RIENTRANZE (INCavi) LEGGERMENTE MODIFICATI ===== #
-    # ===================================================================== #
-    def _disegna_incavi(self, s):
-        raggio = min(self.larg_cella, self.alt_cella) // 2 - 4
-        for r in range(self.righe):
-            for c in range(self.colonne):
-                cx = self.padding + c * self.larg_cella + self.larg_cella // 2
-                cy = self.padding + r * self.alt_cella + self.alt_cella // 2
-
-                rect_arc = pygame.Rect(cx - raggio, cy - raggio, raggio * 2, raggio * 2)
-
-                # 1. Ombra generale sul fondo dell'incavo
-                colore_fondo_incavo = (0, 0, 0, 50)  # Leggermente più scura
-                pygame.draw.circle(s, colore_fondo_incavo, (cx, cy), raggio)
-
-                # 2. Ombra del bordo interno (più marcata)
-                colore_ombra_interna = (0, 0, 0, 90)
-                pygame.draw.arc(s, colore_ombra_interna, rect_arc, math.radians(80), math.radians(200), 3)
-
-                # 3. Luce riflessa sul bordo opposto (più sottile)
-                colore_luce_interna = (255, 255, 255, 50)
-                pygame.draw.arc(s, colore_luce_interna, rect_arc, math.radians(280), math.radians(350), 2)
-
-    # --- Funzioni di disegno (invariate) ---
+    # ---------------------------------------- #
+    # ===== Funzioni di disegno interne ====== #
+    # ---------------------------------------- #
 
     def _lerp(self, a, b, t):
         return int(a + (b - a) * t)
 
     def _gradiente_legno(self, s):
-        temp_surface = pygame.Surface(s.get_size(), pygame.SRCALPHA)
         for y in range(self.h):
             t = y / max(1, self.h - 1)
             col = (
-                self._lerp(self._base[0], self._dark[0], 0.3 * t),
-                self._lerp(self._base[1], self._dark[1], 0.3 * t),
-                self._lerp(self._base[2], self._dark[2], 0.3 * t),
-                255,
+                self._lerp(self._base[0], self._dark[0], 0.4 * t),
+                self._lerp(self._base[1], self._dark[1], 0.4 * t),
+                self._lerp(self._base[2], self._dark[2], 0.4 * t),
             )
-            pygame.draw.line(temp_surface, col, (0, y), (self.w, y))
-        mask = pygame.Surface(s.get_size(), pygame.SRCALPHA)
-        pygame.draw.rect(mask, (255, 255, 255, 255), mask.get_rect(), border_radius=16)
-        temp_surface.blit(mask, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
-        s.blit(temp_surface, (0, 0))
+            pygame.draw.line(s, col, (0, y), (self.w, y))
 
     def _assi_verticali(self, s):
         for c in range(self.colonne):
             x0 = self.padding + c * self.larg_cella
             rect = pygame.Rect(x0, self.padding, self.larg_cella, self.righe * self.alt_cella)
-            pygame.draw.rect(s, (0, 0, 0, 10), rect)
-            pygame.draw.line(s, (255, 255, 255, 15), (rect.left, rect.top), (rect.left, rect.bottom))
-            pygame.draw.line(s, (0, 0, 0, 25), (rect.right, rect.top), (rect.right, rect.bottom))
+            pygame.draw.rect(s, (196, 156, 90), rect)
+            pygame.draw.line(s, (230, 210, 180), rect.topleft, rect.bottomleft)
+            pygame.draw.line(s, (120, 90, 60), rect.topright, rect.bottomright)
 
     def _venature(self, s, num=22):
         for _ in range(num):
@@ -139,34 +109,40 @@ class Table:
             phase = self._rng.uniform(0, 6.28)
             last = None
             for x in range(self.padding, self.w - self.padding):
-                yy = y0 + math.sin(x * freq + phase) * amp
+                yy = int(y0 + math.sin(x * freq + phase) * amp)
                 if last:
-                    pygame.draw.aaline(s, self._grain, last, (x, yy))
+                    pygame.draw.line(s, self._grain, last, (x, yy))
                 last = (x, yy)
+
+    def _disegna_incavi(self, s):
+        raggio = min(self.larg_cella, self.alt_cella) // 2 - 4
+        for r in range(self.righe):
+            for c in range(self.colonne):
+                cx = self.padding + c * self.larg_cella + self.larg_cella // 2
+                cy = self.padding + r * self.alt_cella + self.alt_cella // 2
+                pygame.draw.circle(s, (160, 120, 60), (cx, cy), raggio)
+                pygame.draw.circle(s, (120, 90, 60), (cx, cy), raggio, 3)
 
     def _griglia(self, s):
         for c in range(self.colonne + 1):
             x = self.padding + c * self.larg_cella
-            pygame.draw.line(s, self._grid_color, (x, self.padding), (x, self.h - self.padding), 1)
+            pygame.draw.line(s, self._grid_color, (x, self.padding), (x, self.h - self.padding))
         for r in range(self.righe + 1):
             y = self.padding + r * self.alt_cella
-            pygame.draw.line(s, self._grid_color, (self.padding, y), (self.w - self.padding, y), 1)
+            pygame.draw.line(s, self._grid_color, (self.padding, y), (self.w - self.padding, y))
 
     def _bordo(self, s):
         pygame.draw.rect(s, self._edge, s.get_rect(), width=8, border_radius=16)
 
     def _highlight_superiore(self, s):
-        shine = pygame.Surface((self.w - 12, 22), pygame.SRCALPHA)
-        for i in range(22):
-            alpha = max(0, 90 - i * 4)
-            pygame.draw.rect(shine, (255, 255, 255, alpha), (0, i, self.w - 12, 1))
-        s.blit(shine, (6, 6))
+        for i in range(12):
+            col = (
+                min(255, self._base[0] + 20),
+                min(255, self._base[1] + 20),
+                min(255, self._base[2] + 20),
+            )
+            pygame.draw.line(s, col, (6, 6 + i), (self.w - 6, 6 + i))
 
-    def _disegna_ombra(self, screen, offset=6, intensita=14, passaggi=10, raggio=18):
-        shadow = pygame.Surface((self.w, self.h), pygame.SRCALPHA)
-        base_rect = shadow.get_rect()
-        for i in range(passaggi, 0, -1):
-            a = int(intensita * i)
-            pygame.draw.rect(shadow, (0, 0, 0, a), base_rect.inflate(i * 2, i * 2), border_radius=raggio)
-        screen.blit(shadow, (self.x + offset, self.y + offset))
-
+    def _disegna_ombra(self, screen, offset=6):
+        shadow_rect = pygame.Rect(self.x + offset, self.y + offset, self.w, self.h)
+        pygame.draw.rect(screen, (60, 40, 25), shadow_rect, border_radius=18)
