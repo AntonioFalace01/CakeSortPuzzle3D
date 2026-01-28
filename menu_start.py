@@ -32,7 +32,7 @@ class MenuPause(MenuStart):
         x_pos_button = 250
         w_button = 190
         h_button = 90
-        self.button_resume = Button(x_pos_button, 130, w_button, h_button, "Sprites/Button/button_start.png")
+        self.button_resume = Button(x_pos_button, 130, w_button, h_button, "Sprites/Button/button_resume.png")
         self.button_quit = Button(x_pos_button, 190, w_button, h_button, "Sprites/Button/button_quit.png")
         self.button_settings = Button(x_pos_button, 250, w_button, h_button, "Sprites/Button/button_settings.png")
 

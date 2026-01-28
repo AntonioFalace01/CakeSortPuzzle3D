@@ -9,6 +9,7 @@ class Piece:
         self.tipo = tipo
         self.count = count
 
+
     def __repr__(self):
         return f"{self.tipo}{self.count}"
 
