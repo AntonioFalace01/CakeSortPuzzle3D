@@ -39,30 +39,35 @@ def main(window):
                 run = False
                 break
 
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                mouse_pos = event.pos
-                if stato == "menu_start":
+            # MENU START: SOLO CLICK
+            if stato == "menu_start":
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    mouse_pos = event.pos
                     nuovo_stato = menu_start.gest_eventi(mouse_pos)
                     if nuovo_stato == "game":
                         stato = "game"
                     elif nuovo_stato == "quit_game":
                         run = False
                         break
-                elif stato == "game":
-                    nuovo_stato = game_panel.gest_eventi(mouse_pos)
+
+            # GAME: CLICK + RILASCIO + MOVIMENTO (per drag&drop)
+            elif stato == "game":
+                if event.type in (pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP, pygame.MOUSEMOTION):
+                    mouse_pos = event.pos if event.type != pygame.MOUSEMOTION else pygame.mouse.get_pos()
+                    nuovo_stato = game_panel.gest_eventi(mouse_pos, event)
                     if nuovo_stato == "pause_game":
                         stato = "pause_game"
-                elif stato == "pause_game":
+
+            # MENU PAUSA: SOLO CLICK
+            elif stato == "pause_game":
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    mouse_pos = event.pos
                     nuovo_stato = menu_pause.gest_eventi(mouse_pos)
                     if nuovo_stato == "resume_game":
                         stato = "game"
                     elif nuovo_stato == "quit_game":
                         run = False
                         break
-
-
-
-
 
         if stato == "menu_start":
             window.blit(sfondo_menu_start,(0,0))
