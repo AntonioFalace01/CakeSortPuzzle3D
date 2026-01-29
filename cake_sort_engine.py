@@ -1,8 +1,6 @@
 import random
 
-# =========================
-#  DATA STRUCTURES
-# =========================
+
 
 class Piece:
     def __init__(self, tipo, count=1):
