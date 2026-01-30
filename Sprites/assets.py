@@ -1,15 +1,7 @@
 import pygame
 
-PLATE_IMAGE = pygame.image.load("Sprites/piatto-removebg-preview.png").convert_alpha()
+PLATE_IMAGE = pygame.image.load("Sprites/plate.png").convert_alpha()
 
-
-'''
-SLICE_IMAGES = {
-    "C": pygame.image.load("Sprites/Cakes/chocolate.png").convert_alpha(),
-    "S": pygame.image.load("Sprites/Cakes/strawberry.png").convert_alpha(),
-    "V": pygame.image.load("Sprites/Cakes/vanilla.png").convert_alpha(),
-}
-'''
 
 def draw_plate(surface, plate, center_x, center_y):
     """
@@ -28,7 +20,8 @@ def draw_plate(surface, plate, center_x, center_y):
     current_angle = 0
 
     for piece in plate.pieces:
-        img = SLICE_IMAGES.get(piece.tipo)
+        img = SLICE_IMAGES.get(TYPE_TO_SLICE.get(piece.tipo))
+
         if not img:
             continue
 

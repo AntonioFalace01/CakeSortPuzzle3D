@@ -3,6 +3,7 @@ import pygame
 class PlateSprite:
     def __init__(self, plate, x, y, image_path="piatto.png", cell_size=(60,60)):
         self.plate = plate
+
         self.image = pygame.image.load(image_path).convert_alpha()
         self.image = pygame.transform.scale(self.image, cell_size)
         self.rect = self.image.get_rect(topleft=(x, y))

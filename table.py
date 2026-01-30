@@ -74,7 +74,7 @@ class Table:
         if self.mostra_griglia:
             self._griglia(s)
         self._bordo(s)
-        self._highlight_superiore(s)
+        #self._highlight_superiore(s)
 
     # ---------------------------------------- #
     # ===== Funzioni di disegno interne ====== #
@@ -134,7 +134,7 @@ class Table:
     def _bordo(self, s):
         pygame.draw.rect(s, self._edge, s.get_rect(), width=8, border_radius=16)
 
-    def _highlight_superiore(self, s):
+    '''def _highlight_superiore(self, s):
         for i in range(12):
             col = (
                 min(255, self._base[0] + 20),
@@ -142,7 +142,7 @@ class Table:
                 min(255, self._base[2] + 20),
             )
             pygame.draw.line(s, col, (6, 6 + i), (self.w - 6, 6 + i))
-
+'''
     def _disegna_ombra(self, screen, offset=6):
         shadow_rect = pygame.Rect(self.x + offset, self.y + offset, self.w, self.h)
         pygame.draw.rect(screen, (60, 40, 25), shadow_rect, border_radius=18)

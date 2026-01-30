@@ -8,6 +8,10 @@ from menu_start import MenuStart
 
 
 pygame.init()
+pygame.mixer.init()
+pygame.mixer.music.load("Audio/bg-audio.mp3")
+pygame.mixer.music.set_volume(0.4)
+pygame.mixer.music.play(-1)
 pygame.display.set_caption("Cake Sort Puzzle")
 fps = 60
 #pygame.display.set_icon(pygame.image.load("Sprites/icon.png")) #da metter l'icona che vogliamo
@@ -60,10 +64,12 @@ def main(window):
 
             # MENU PAUSA: SOLO CLICK
             elif stato == "pause_game":
+                pygame.mixer.music.pause()
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     mouse_pos = event.pos
                     nuovo_stato = menu_pause.gest_eventi(mouse_pos)
                     if nuovo_stato == "resume_game":
+                        pygame.mixer.music.unpause()
                         stato = "game"
                     elif nuovo_stato == "quit_game":
                         run = False

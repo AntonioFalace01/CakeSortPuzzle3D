@@ -5,12 +5,22 @@ from button import Button
 from cake_sort_engine import GameState, generate_three_options
 from table import Table
 
+
 class Game:
     def __init__(self):
         x_pos_button = 620
         w_button = 50
         h_button = 50
-        self.tavolo = Table(210, 100)
+        self.tavolo = Table(
+            210,
+            100,
+            righe=5,
+            colonne=4,
+            larg_cella=60,
+            alt_cella=60,
+            padding=12
+        )
+
         self.button_pause = Button(x_pos_button, 20, w_button, h_button,
                                    "Sprites/Button/button_pause.png")
         # Stato logico del gioco (motore)
@@ -19,7 +29,12 @@ class Game:
         # Area dove compaiono i piatti generati
         self.options_area = (40, 120)
         self.options_spacing = 80
-        self.cell_size = (60, 60)
+        self.cell_size = (58,58)
+
+        self.plate_img = pygame.transform.scale(
+            pygame.image.load("Sprites/plate.png").convert_alpha(),
+            self.cell_size
+        )
 
         # Opzioni correnti (dal motore) e sprite grafici
         self.current_options = []
@@ -36,7 +51,7 @@ class Game:
         # Creiamo uno sprite per OGNI plate di OGNI opzione
         for opt in self.current_options:
             for plate in opt["plates"]:
-                sp = PlateSprite(plate, x0, y, image_path="Sprites/piatto.png", cell_size=self.cell_size)
+                sp = PlateSprite(plate, x0, y, image_path="Sprites/plate.png", cell_size=self.cell_size)
                 self.sprites.append(sp)
                 y += self.options_spacing
 
@@ -52,10 +67,8 @@ class Game:
                     cx = self.tavolo.x + self.tavolo.padding + c * self.tavolo.larg_cella
                     cy = self.tavolo.y + self.tavolo.padding + r * self.tavolo.alt_cella
                     # puoi riusare la stessa immagine: PlateSprite richiede un’istanza, quindi usa una Surface di servizio
-                    window.blit(pygame.transform.scale(
-                        pygame.image.load("Sprites/piatto.png").convert_alpha(),
-                        self.cell_size
-                    ), (cx, cy))
+                    offset = (self.tavolo.larg_cella - self.cell_size[0]) // 2
+                    window.blit(self.plate_img, (cx + offset, cy + offset))
 
     def _cell_topleft(self, r, c):
         cx = self.tavolo.x + self.tavolo.padding + c * self.tavolo.larg_cella
