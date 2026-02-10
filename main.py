@@ -1,4 +1,6 @@
 import  pygame
+
+import assets
 from game_panel import Game
 from menu_start import MenuStart, MenuPause
 from particelle import GestoreParticelle
@@ -16,6 +18,7 @@ pygame.display.set_caption("Cake Sort Puzzle")
 fps = 60
 #pygame.display.set_icon(pygame.image.load("Sprites/icon.png")) #da metter l'icona che vogliamo
 window = pygame.display.set_mode((700, 500))
+assets.Assets.init()
 try:
     img_menu_start = pygame.image.load("Sprites/Background/menu_start.png")
     sfondo_menu_start = pygame.transform.scale(img_menu_start, (700, 500))
