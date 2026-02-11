@@ -1,12 +1,13 @@
 import pygame
-import math  # <--- Importante per i calcoli di posizionamento
+import math
 
 
 class Assets:
     # Path base
     PATH_PLATE = "Sprites/plate.png"
     PATH_SLICES = {
-        "raspberry_choco": "Sprites/slices/cake-slice3.png",
+        # Assicurati che questi percorsi siano corretti sul tuo PC
+        "raspberry_choco": "Sprites/slices/cakeSlice1.png",
         "sprinkles_cherry": "Sprites/slices/cake-slice4.png",
         "lattice_berry": "Sprites/slices/cake-slice5.png",
         "lemon_swirl": "Sprites/slices/cake-slice6.png",
@@ -27,10 +28,19 @@ class Assets:
     @classmethod
     def init(cls):
         if cls._plate_src is None:
-            cls._plate_src = pygame.image.load(cls.PATH_PLATE)
+            try:
+                cls._plate_src = pygame.image.load(cls.PATH_PLATE)
+            except pygame.error:
+                print(f"Errore caricamento piatto: {cls.PATH_PLATE}")
+                cls._plate_src = pygame.Surface((100, 100))  # Fallback
+
         if not cls._slice_src:
             for key, path in cls.PATH_SLICES.items():
-                cls._slice_src[key] = pygame.image.load(path)
+                try:
+                    cls._slice_src[key] = pygame.image.load(path)
+                except pygame.error:
+                    print(f"Errore caricamento slice: {path}")
+                    cls._slice_src[key] = pygame.Surface((50, 50))  # Fallback
 
     @classmethod
     def _get_plate_image(cls, plate_size):
@@ -50,11 +60,19 @@ class Assets:
         key = (slice_key, plate_size)
         img = cls._slice_cache.get(key)
         if img is None:
-            # --- MODIFICA DIMENSIONE ---
-            # Riduciamo la fetta a circa il 60% del piatto (era 0.85)
-            # Questo, combinato con lo spostamento (offset), evita sovrapposizioni brutte
-            target = int(plate_size * 0.60)
-            scaled = pygame.transform.smoothscale(cls._slice_src[slice_key], (target, target))
+            # --- CALIBRAZIONE DIMENSIONE ---
+            # Per la tua fetta al lime, deve essere circa metà del piatto
+            # Valore consigliato: 0.50 - 0.55
+            target = int(plate_size * 0.52)
+
+            src_img = cls._slice_src[slice_key]
+
+            # Manteniamo l'aspect ratio originale per non deformarla
+            aspect_ratio = src_img.get_width() / src_img.get_height()
+            target_w = int(target * aspect_ratio)
+            target_h = target
+
+            scaled = pygame.transform.smoothscale(src_img, (target_w, target_h))
             img = scaled.convert_alpha() if pygame.display.get_surface() else scaled
             cls._slice_cache[key] = img
         return img
@@ -74,11 +92,11 @@ class Assets:
         angle_step = 360 / MAX_SLICES
         current_angle = 0
 
-        # --- PARAMETRO DISTANZA ---
-        # Questo sposta le fette dal centro verso l'esterno.
-        # Se le fette sono ancora sovrapposte, aumenta (es. 0.28).
-        # Se c'è un buco troppo grande al centro, diminuisci (es. 0.20).
-        distanza_dal_centro = plate_size * 0.15
+        # --- CORREZIONE DISTANZA (PUSH OUT) ---
+        # Aumentiamo questo valore per "spingere" le fette dal centro verso il bordo.
+        # Poiché ruotiamo le fette, il loro centro geometrico deve allontanarsi dal centro del piatto.
+        # Prova 0.22. Se sono troppo esterne, scendi a 0.18. Se si sovrappongono troppo, sali a 0.25.
+        distanza_dal_centro = plate_size * 0.22
 
         for piece in plate.pieces:
             slice_key = cls.TYPE_TO_SLICE.get(piece.tipo)
@@ -88,21 +106,19 @@ class Assets:
             img = cls._get_slice_image(slice_key, plate_size)
 
             for _ in range(piece.count):
-                # Ruota l'immagine
-                rotated = pygame.transform.rotate(img, -current_angle+180)
+                # --- CORREZIONE ROTAZIONE (+180) ---
+                # Aggiungiamo 180 gradi per far girare la punta verso l'interno (il centro del piatto)
+                # Invece che verso l'esterno.
+                rotated = pygame.transform.rotate(img, -current_angle + 180)
 
-                # --- CALCOLO POSIZIONE CORRETTA (Trigonometria) ---
-                # Convertiamo l'angolo in radianti per seno e coseno
+                # --- CALCOLO POSIZIONE ---
                 radianti = math.radians(current_angle)
 
-                # Calcoliamo lo spostamento (offset) dal centro del piatto
-                # Nota: le coordinate schermo Y sono invertite, e dipende dall'orientamento originale della sprite.
-                # Questa formula assume che la sprite punti verso l'alto (o sia standard).
-                # Se le fette vanno nella direzione sbagliata, prova a invertire i segni o scambiare sin/cos.
+                # Calcolo offset: Spostiamo il centro dell'immagine lungo l'angolo
                 offset_x = math.sin(radianti) * distanza_dal_centro
                 offset_y = -math.cos(radianti) * distanza_dal_centro
 
-                # Posizioniamo il centro della fetta spostato rispetto al centro del piatto
+                # Posizioniamo
                 rect = rotated.get_rect(center=(center_x + offset_x, center_y + offset_y))
 
                 surface.blit(rotated, rect)

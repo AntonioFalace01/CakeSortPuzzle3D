@@ -7,7 +7,7 @@ from particelle import GestoreParticelle
 from button import Button
 from cake_sort_engine import generate_three_options, GameState, Piece, Plate
 from menu_start import MenuStart
-
+from sound_manager import SoundManager
 
 pygame.init()
 pygame.mixer.init()
@@ -38,7 +38,9 @@ def main(window):
     menu_start = MenuStart()
     game_panel= Game()
     menu_pause = MenuPause()
+
     particelle = GestoreParticelle(60, 700, 500)
+    sound = SoundManager()
     while run:
         clock.tick(fps)
         for event in pygame.event.get():
@@ -56,6 +58,8 @@ def main(window):
                     elif nuovo_stato == "quit_game":
                         run = False
                         break
+                    elif nuovo_stato == "settings":
+                        stato= "settings"
 
             # GAME: CLICK + RILASCIO + MOVIMENTO (per drag&drop)
             elif stato == "game":
@@ -77,6 +81,15 @@ def main(window):
                     elif nuovo_stato == "quit_game":
                         run = False
                         break
+                    elif nuovo_stato == "settings":
+                        stato= "settings"
+
+            elif stato == "settings":
+                # Passa l'evento al sound manager (gestisce slider e click)
+                nuovo_stato = sound.gest_eventi(event)
+
+                if nuovo_stato == "game":
+                    stato = "game"
 
         if stato == "menu_start":
             window.blit(sfondo_menu_start,(0,0))
@@ -90,6 +103,10 @@ def main(window):
         elif stato == "pause_game":
             window.blit(sfondo_menu_pause,(0,0))
             menu_pause.draw(window)
+
+        elif stato == "settings":
+            window.blit(sfondo_menu_pause,(0,0))
+            sound.draw(window)
         pygame.display.update()
 
     pygame.quit()

@@ -24,6 +24,8 @@ class MenuStart:
             return "game"
         if self.button_quit.is_clicked(posizione_mouse):
             return "quit_game"
+        if self.button_settings.is_clicked(posizione_mouse):
+            return "settings"
         return None
 
 class MenuPause(MenuStart):
@@ -47,6 +49,8 @@ class MenuPause(MenuStart):
             return "resume_game"
         if self.button_quit.is_clicked(posizione_mouse):
             return "quit_game"
+        if self.button_settings.is_clicked(posizione_mouse):
+            return "settings"
         return None
 
 
