@@ -12,7 +12,7 @@ from sound_manager import SoundManager
 pygame.init()
 pygame.mixer.init()
 pygame.mixer.music.load("Audio/bg-audio.mp3")
-pygame.mixer.music.set_volume(0.4)
+pygame.mixer.music.set_volume(0.1)
 pygame.mixer.music.play(-1)
 pygame.display.set_caption("Cake Sort Puzzle")
 fps = 60
