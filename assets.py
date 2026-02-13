@@ -2,24 +2,63 @@ import pygame
 import math
 
 
+class UnlockManager:
+    def __init__(self):
+        self.all_types_ordered=["C", "S", "V", "L","A","B", "D", "E", "F", "G"]
+        self.active_types = set(self.all_types_ordered[:3])
+        self.unlocked_count = len(self.active_types)
+        # soglie di sblocco per ognuna delle 7 nuove torte
+        # es: [100, 250, 450, 700, 1000, 1350, 1750]
+        self.unlock_thresholds = [100, 250, 450, 700, 1000, 1350, 1750]
+
+        self.total_score = 0  # cumulativo globale per sblocchi
+        self.next_unlock_index = 0  # indice nella lista unlock_thresholds
+
+    def get_next_threshold(self):
+        if self.next_unlock_index < len(self.unlock_thresholds):
+            return self.unlock_thresholds[self.next_unlock_index]
+        return None  # nessun altro sblocco
+
+    def add_score(self, amount):
+        """Aggiorna punteggio cumulativo e ritorna True se si sblocca una nuova torta."""
+        if amount <= 0:
+            return False
+        self.total_score += amount
+        threshold = self.get_next_threshold()
+        if threshold is not None and self.total_score >= threshold:
+            # sblocca una nuova torta
+            next_type = self.all_types_ordered[self.unlocked_count]  # prendi il prossimo tipo
+            self.active_types.add(next_type)
+            self.unlocked_count += 1
+            self.next_unlock_index += 1
+            return True
+        return False
+
+    def is_type_active(self, t):
+        return t in self.active_types
+
+    def get_active_types_list(self):
+        return list(self.active_types)
+
+
 class Assets:
-    # ------------------ PATH ------------------
 
     PATH_PLATE = "Sprites/plate.png"
 
-    PATH_SLICES = {
-        "raspberry_choco": "Sprites/slices/cakeSlice2.png",
-        "sprinkles_cherry": "Sprites/slices/cakeSlice8.png",
-        "lattice_berry": "Sprites/slices/cakeSlice7.png",
-        "lemon_swirl": "Sprites/slices/cakeSlice1.png",
-    }
+    PATH_SLICES = {"raspberry_choco": "Sprites/slices/cakeSlice2.png",
+                   "sprinkles_cherry": "Sprites/slices/cakeSlice8.png",
+                    "lattice_berry": "Sprites/slices/cakeSlice7.png",
+                   "lemon_swirl": "Sprites/slices/cakeSlice1.png",
+                    "almond_crunch": "Sprites/slices/cakeSlice3.png",
+                    "blueberry_glaze": "Sprites/slices/cakeSlice4.png",
+                    "dark_forest": "Sprites/slices/cakeSlice5.png",
+                    "emerald_mint": "Sprites/slices/cakeSlice6.png",
+                   "frost_vanilla": "Sprites/slices/cakeSlice9.png",
+                   "golden_honey": "Sprites/slices/cakeSlice10.png"}
 
-    TYPE_TO_SLICE = {
-        "C": "raspberry_choco",
-        "S": "sprinkles_cherry",
-        "V": "lattice_berry",
-        "L": "lemon_swirl",
-    }
+    TYPE_TO_SLICE = {"C": "raspberry_choco", "S": "sprinkles_cherry", "V": "lattice_berry", "L": "lemon_swirl",
+                     "A": "almond_crunch", "B": "blueberry_glaze", "D": "dark_forest", "E": "emerald_mint",
+                     "F": "frost_vanilla", "G": "golden_honey", }
 
     # ------------------ CACHE ------------------
 

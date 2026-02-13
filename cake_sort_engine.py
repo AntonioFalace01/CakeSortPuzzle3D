@@ -285,42 +285,30 @@ class GameState:
                         self.score += 10
                         break
 
-# =========================
-#  GENERATION LOGIC
-# =========================
-
-TIPI = ["C", "S", "V"]
-
-def generate_random_plate():
-    if random.random() < 0.4:
-        tipi = random.sample(TIPI, 2)
-        return Plate([
-            Piece(tipi[0], random.randint(1, 2)),
-            Piece(tipi[1], random.randint(1, 2))
-        ])
+def generate_random_plate_active(active_types):
+    tipi = list(active_types)
+    if not tipi:
+        tipi = ["C", "S", "V"]
+    if random.random() < 0.4 and len(tipi) >= 2:
+        scelte = random.sample(tipi, 2)
+        return Plate([ Piece(scelte[0], random.randint(1, 2)), Piece(scelte[1], random.randint(1, 2)) ])
     else:
-        tipo = random.choice(TIPI)
+        tipo = random.choice(tipi)
         return Plate([Piece(tipo, random.randint(1, 3))])
 
+def generate_single_option_active(active_types):
+    return {"plates": [generate_random_plate_active(active_types)], "orientation": "NONE"}
 
-def generate_single_option():
-    return {"plates": [generate_random_plate()], "orientation": "NONE"}
+def generate_double_option_active(active_types):
+    return { "plates": [generate_random_plate_active(active_types), generate_random_plate_active(active_types)], "orientation": random.choice(["H", "V"]) }
 
-
-def generate_double_option():
-    return {
-        "plates": [generate_random_plate(), generate_random_plate()],
-        "orientation": random.choice(["H", "V"])
-    }
-
-
-def generate_three_options():
+def generate_three_options_active(active_types):
     options = []
-    if random.random() < 0.25:
-        options.append(generate_double_option())
-
+    if random.random() < 0.25: options.append(generate_double_option_active(active_types))
     while len(options) < 3:
-        options.append(generate_single_option())
+        options.append(generate_single_option_active(active_types))
 
     random.shuffle(options)
     return options
+
+

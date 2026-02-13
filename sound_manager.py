@@ -115,6 +115,6 @@ class SoundManager:
 
         if event.type == pygame.MOUSEBUTTONDOWN:
             if self.button_resume.is_clicked(event.pos):
-                return "game"
+                return "resume_settings"
 
         return None

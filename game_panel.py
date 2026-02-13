@@ -1,9 +1,10 @@
 import pygame
-from cake_sort_engine import generate_three_options, GameState
+from cake_sort_engine import GameState, generate_three_options_active
 from plate_sprite import PlateSprite
 from button import Button
+from score_bar import ScoreBar
 from table import Table
-from assets import Assets
+from assets import Assets, UnlockManager
 
 
 class Game:
@@ -26,7 +27,16 @@ class Game:
         # Stato logico del gioco
         self.state = GameState(rows=5, cols=4)
 
-        # Area opzioni
+        # Sistema sblocchi + barra
+        self.unlock = UnlockManager()
+        self.score_bar = ScoreBar(x=250, y=40, width=200, height=100, image_path="Sprites/barra.png")
+
+        # imposta barra sulla prossima soglia
+        next_thr = self.unlock.get_next_threshold()
+        if next_thr is None:
+            next_thr = 1
+        self.score_bar.set_progress(self.unlock.total_score, next_thr)
+
         self.options_area = (40, 120)
         self.options_spacing = 80
         self.cell_size = (58, 58)
@@ -38,11 +48,10 @@ class Game:
         self.generate_options()
 
     def generate_options(self):
-        self.current_options = generate_three_options()
+        self.current_options = generate_three_options_active(self.unlock.active_types)
         self.sprites = []
         x0, y0 = self.options_area
         y = y0
-
         for opt in self.current_options:
             for plate in opt["plates"]:
                 sp = PlateSprite(plate, x0, y, cell_size=self.cell_size)
@@ -50,34 +59,47 @@ class Game:
                 y += self.options_spacing
 
     def draw(self, window):
-        # 1. Disegna Tavolo
         self.tavolo.draw(window)
         self.button_pause.draw(window)
 
-        # 2. Disegna gli sprite (le opzioni trascinabili)
         for sp in self.sprites:
             sp.draw(window)
 
-        # 3. Disegna i piatti PIAZZATI sulla griglia
+        # piatti piazzati
         for r in range(self.state.rows):
             for c in range(self.state.cols):
                 plate = self.state.grid[r][c]
                 if plate is not None:
-                    # Calcola centro cella
                     cx_cell = self.tavolo.x + self.tavolo.padding + c * self.tavolo.larg_cella
                     cy_cell = self.tavolo.y + self.tavolo.padding + r * self.tavolo.alt_cella
                     center_x = cx_cell + self.tavolo.larg_cella // 2
                     center_y = cy_cell + self.tavolo.alt_cella // 2
-
                     plate_size = min(self.tavolo.larg_cella, self.tavolo.alt_cella)
-
-                    # Usa la classe Assets per disegnare
                     Assets.draw_plate(window, plate, center_x, center_y, plate_size=plate_size)
+
+        # aggiorna barra (animazione)
+        self.score_bar.update()
+        label = "Prossima torta" if self.unlock.get_next_threshold() is not None else "Tutte sbloccate"
+        self.score_bar.draw(window, label=label)
 
     def _cell_topleft(self, r, c):
         cx = self.tavolo.x + self.tavolo.padding + c * self.tavolo.larg_cella
         cy = self.tavolo.y + self.tavolo.padding + r * self.tavolo.alt_cella
         return (cx, cy)
+
+    def _handle_score_unlocks(self, prev_score, new_score):
+        delta = max(0, new_score - prev_score)
+        if delta > 0:
+            # aggiorna cumulativo e controlla sblocco
+            unlocked = self.unlock.add_score(delta)
+            # aggiorna barra
+            next_thr = self.unlock.get_next_threshold()
+            if next_thr is None:
+                next_thr = 1
+            self.score_bar.set_progress(self.unlock.total_score, next_thr)
+            # se abbiamo sbloccato una nuova torta, rigenera le opzioni con tipi aggiornati
+            if unlocked:
+                self.generate_options()
 
     def gest_eventi(self, posizione_mouse, event=None):
         if event and event.type == pygame.MOUSEBUTTONDOWN:
@@ -88,7 +110,6 @@ class Game:
             return None
 
         if event.type == pygame.MOUSEBUTTONDOWN:
-            # Drag inverso per prendere quello più in alto
             for sp in reversed(self.sprites):
                 sp.start_drag(posizione_mouse)
                 if sp.dragging:
@@ -104,10 +125,15 @@ class Game:
                 cell = self.tavolo.get_cell_at(posizione_mouse)
                 if cell:
                     r, c = cell
-                    # Se la cella è libera
                     if self.state.grid[r][c] is None:
                         block = {"plates": [self.drag_sprite.plate], "orientation": "NONE"}
+                        # cattura score prima/dopo per calcolare delta
+                        prev_score = self.state.score
                         ok = self.state.place_block(block, r, c)
+                        new_score = self.state.score
+                        # gestisci sblocchi in base al delta di score ottenuto
+                        self._handle_score_unlocks(prev_score, new_score)
+
                         if ok:
                             self.drag_sprite.snap_to_cell_topleft(self._cell_topleft(r, c))
                         else:
@@ -120,7 +146,6 @@ class Game:
                 self.drag_sprite.stop_drag()
                 self.drag_sprite = None
 
-                # Se tutti sono piazzati, rigenera
                 if all(sp.placed for sp in self.sprites):
                     self.generate_options()
 

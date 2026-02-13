@@ -4,8 +4,6 @@ import assets
 from game_panel import Game
 from menu_start import MenuStart, MenuPause
 from particelle import GestoreParticelle
-from button import Button
-from cake_sort_engine import generate_three_options, GameState, Piece, Plate
 from menu_start import MenuStart
 from sound_manager import SoundManager
 
@@ -60,6 +58,7 @@ def main(window):
                         break
                     elif nuovo_stato == "settings":
                         stato= "settings"
+                        settings_origin= "menu_start"
 
             # GAME: CLICK + RILASCIO + MOVIMENTO (per drag&drop)
             elif stato == "game":
@@ -83,13 +82,21 @@ def main(window):
                         break
                     elif nuovo_stato == "settings":
                         stato= "settings"
+                        settings_origin = "pause_game"
 
             elif stato == "settings":
                 # Passa l'evento al sound manager (gestisce slider e click)
                 nuovo_stato = sound.gest_eventi(event)
 
-                if nuovo_stato == "game":
-                    stato = "game"
+                if nuovo_stato == "resume_settings":
+                    if settings_origin == "menu_start":
+                        stato = "menu_start"
+                    elif settings_origin == "pause_game":
+                        pygame.mixer.music.unpause()
+                        stato = "game"
+                    else:
+                        # fallback se per qualche motivo non è impostato
+                        stato = "menu_start"
 
         if stato == "menu_start":
             window.blit(sfondo_menu_start,(0,0))
