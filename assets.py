@@ -82,7 +82,7 @@ class Assets:
         plate_rect = plate_img.get_rect(center=(center_x, center_y))
         surface.blit(plate_img, plate_rect)
 
-        if not plate or not plate.pieces:
+        if not plate:
             return
 
         MAX_SLICES = 6

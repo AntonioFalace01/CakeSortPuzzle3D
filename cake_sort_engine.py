@@ -1,12 +1,10 @@
 import random
 
 
-
 class Piece:
     def __init__(self, tipo, count=1):
         self.tipo = tipo
         self.count = count
-
 
     def __repr__(self):
         return f"{self.tipo}{self.count}"
@@ -73,6 +71,10 @@ class GameState:
             if 0 <= rr < self.rows and 0 <= cc < self.cols:
                 yield rr, cc
 
+    # =========================
+    #  PLACE BLOCK
+    # =========================
+
     def place_block(self, block, start_r, start_c):
         orientation = block["orientation"]
         plates = block["plates"]
@@ -85,68 +87,94 @@ class GameState:
         else:
             positions = [(start_r, start_c)]
 
+        # controllo validità
         for r, c in positions:
             if not (0 <= r < self.rows and 0 <= c < self.cols):
                 return False
             if self.grid[r][c] is not None:
                 return False
 
+        # piazza i piatti
+        placed_positions = []
         for (r, c), plate in zip(positions, plates):
             self.grid[r][c] = plate
+            placed_positions.append((r, c))
 
-        tipo_to_cells = {}
-        for (r, c), plate in zip(positions, plates):
-            for p in plate.pieces:
-                tipo_to_cells.setdefault(p.tipo, []).append((r, c))
+        # tipi coinvolti
+        tipi_coinvolti = {
+            p.tipo
+            for plate in plates
+            for p in plate.pieces
+        }
 
-        for tipo in set(p.tipo for plate in block["plates"] for p in plate.pieces):
-            self.chain_merge_from_type(tipo)
+        # merge per ogni tipo
+        for tipo in tipi_coinvolti:
+            self.chain_merge_from_type(tipo, placed_positions)
 
         self.resolve_groups()
         return True
 
-    def choose_target(self, plate_a, plate_b, tipo, pos_a, pos_b):
+    # =========================
+    #  TARGET SELECTION (FIX)
+    # =========================
+
+    def choose_target(self, plate_a, plate_b, tipo, pos_a, pos_b, placed_positions):
         pa = plate_a.get_piece(tipo)
         pb = plate_b.get_piece(tipo)
+
+        a_is_new = pos_a in placed_positions
+        b_is_new = pos_b in placed_positions
 
         a_pure = len(plate_a.pieces) == 1
         b_pure = len(plate_b.pieces) == 1
 
-        if a_pure and not b_pure:
-            return plate_a, plate_b
-        if b_pure and not a_pure:
-            return plate_b, plate_a
+        # ⭐ Regola calamita del gioco originale
 
+        if a_is_new and not b_is_new:
+            if a_pure:
+                return plate_a, plate_b
+            else:
+                return plate_b, plate_a
+
+        if b_is_new and not a_is_new:
+            if b_pure:
+                return plate_b, plate_a
+            else:
+                return plate_a, plate_b
+
+        # comportamento normale (combo tra vecchi piatti)
         if pa.count > pb.count:
             return plate_a, plate_b
         if pb.count > pa.count:
             return plate_b, plate_a
 
+        # tie breaker spaziale
         (ra, ca) = pos_a
         (rb, cb) = pos_b
         if rb > ra or (rb == ra and cb > ca):
             return plate_b, plate_a
         return plate_a, plate_b
 
-    def chain_merge_from_type(self, tipo):
-        """
-        Merge globale completo per un tipo.
-        Unisce tutte le celle adiacenti contenenti il tipo finché non ci sono più fusioni possibili.
-        Gestisce overflow e limite massimo 6 fette per cella.
-        """
+    # =========================
+    #  MERGE LOGIC
+    # =========================
+
+    def chain_merge_from_type(self, tipo, placed_positions):
         changed = True
+
         while changed:
             changed = False
 
-            # tutte le celle che contengono il tipo
-            cells_with_type = [
-                (r, c) for r in range(self.rows) for c in range(self.cols)
-                if self.grid[r][c] is not None and self.grid[r][c].get_piece(tipo)
+            cells = [
+                (r, c)
+                for r in range(self.rows)
+                for c in range(self.cols)
+                if self.grid[r][c] and self.grid[r][c].get_piece(tipo)
             ]
 
-            for cr, cc in cells_with_type:
+            for cr, cc in cells:
                 current = self.grid[cr][cc]
-                if current is None:
+                if not current:
                     continue
 
                 cp = current.get_piece(tipo)
@@ -155,61 +183,90 @@ class GameState:
 
                 for nr, nc in self.neighbors4(cr, cc):
                     neighbor = self.grid[nr][nc]
-                    if neighbor is None:
+                    if not neighbor:
                         continue
 
                     np = neighbor.get_piece(tipo)
                     if not np:
                         continue
 
-                    # scegli target / source
                     target, source = self.choose_target(
-                        current, neighbor, tipo, (cr, cc), (nr, nc)
+                        current, neighbor, tipo,
+                        (cr, cc), (nr, nc),
+                        placed_positions
                     )
 
-                    # salva posizione source
-                    if source is current:
-                        source_pos = (cr, cc)
-                    else:
-                        source_pos = (nr, nc)
-
-                    # rimuovi tutte le fette dalla source
-                    sp_count = source.remove(
-                        tipo, source.get_piece(tipo).count
-                    )
-
-                    if sp_count <= 0:
-                        continue
+                    source_pos = (cr, cc) if source is current else (nr, nc)
 
                     tp = target.get_piece(tipo)
-                    if not tp:
-                        target.add(tipo, 0)
-                        tp = target.get_piece(tipo)
+                    sp = source.get_piece(tipo)
 
-                    # --- CASO OVERFLOW ---
-                    if tp.count + sp_count > 6:
-                        overflow = tp.count + sp_count - 6
+                    if not tp or not sp:
+                        continue
 
-                        # torta completata
+                    total = tp.count + sp.count
+
+                    # =====================
+                    # CASO OVERFLOW (completa torta)
+                    # =====================
+                    if total > 6:
+                        needed = 6 - tp.count  # fette necessarie per completare
+
+                        # sposta solo quelle necessarie
+                        source.remove(tipo, needed)
+                        target.add(tipo, needed)
+
+                        # completa torta
+                        # completa torta
                         self.score += 10
-                        target.remove(tipo, tp.count)
 
-                        # overflow resta nella stessa cella
-                        if overflow > 0:
-                            target.add(tipo, overflow)
+                        # rimuovi il piatto COMPLETAMENTE
+                        tr, tc = (cr, cc) if target is current else (nr, nc)
+                        self.grid[tr][tc] = None
+
+                        # se la source è vuota libera la cella
+                        if source.is_empty():
+                            sr, sc = source_pos
+                            self.grid[sr][sc] = None
+
+                        # sicurezza: se anche il target è rimasto vuoto rimuovilo
+                        if target.is_empty():
+                            tr, tc = (cr, cc) if target is current else (nr, nc)
+                            self.grid[tr][tc] = None
 
                         changed = True
 
-                    # --- CASO NORMALE ---
+                    # =====================
+                    # CASO NORMALE
+                    # =====================
                     else:
-                        tp.count += sp_count
+                        moved = source.remove(tipo, sp.count)
+                        target.add(tipo, moved)
+
+                        # 🔥 se raggiunge 6 → torta completata
+                        tp_after = target.get_piece(tipo)
+                        if tp_after and tp_after.count == 6:
+                            tr, tc = (cr, cc) if target is current else (nr, nc)
+                            self.grid[tr][tc] = None
+                            self.score += 10
+                        else:
+                            if source.is_empty():
+                                sr, sc = source_pos
+                                self.grid[sr][sc] = None
+
                         changed = True
 
-                    # se la source è vuota, libera SOLO la sua cella
-                    if source.is_empty():
-                        sr, sc = source_pos
-                        self.grid[sr][sc] = None
-                        changed = True
+                    # pulizia finale celle vuote (sicurezza assoluta)
+        for r in range(self.rows):
+            for c in range(self.cols):
+                plate = self.grid[r][c]
+                if plate and plate.is_empty():
+                    self.grid[r][c] = None
+
+
+    # =========================
+    #  CLEANUP
+    # =========================
 
     def resolve_groups(self):
         for r in range(self.rows):
@@ -217,12 +274,16 @@ class GameState:
                 plate = self.grid[r][c]
                 if not plate:
                     continue
+
+                if plate.is_empty():
+                    self.grid[r][c] = None
+                    continue
+
                 for p in plate.pieces:
                     if p.count >= 6:
                         self.grid[r][c] = None
                         self.score += 10
                         break
-
 
 # =========================
 #  GENERATION LOGIC
@@ -231,25 +292,20 @@ class GameState:
 TIPI = ["C", "S", "V"]
 
 def generate_random_plate():
-    # probabilità di piatto misto
-    if random.random() < 0.4:   # 40% misti
+    if random.random() < 0.4:
         tipi = random.sample(TIPI, 2)
-        pieces = [
+        return Plate([
             Piece(tipi[0], random.randint(1, 2)),
             Piece(tipi[1], random.randint(1, 2))
-        ]
-        return Plate(pieces)
+        ])
     else:
         tipo = random.choice(TIPI)
-        count = random.randint(1, 3)
-        return Plate([Piece(tipo, count)])
+        return Plate([Piece(tipo, random.randint(1, 3))])
 
 
 def generate_single_option():
-    return {
-        "plates": [generate_random_plate()],
-        "orientation": "NONE"
-    }
+    return {"plates": [generate_random_plate()], "orientation": "NONE"}
+
 
 def generate_double_option():
     return {
@@ -257,9 +313,10 @@ def generate_double_option():
         "orientation": random.choice(["H", "V"])
     }
 
+
 def generate_three_options():
     options = []
-    if random.random() < 0.25:   # blocco doppio più raro
+    if random.random() < 0.25:
         options.append(generate_double_option())
 
     while len(options) < 3:
@@ -267,6 +324,3 @@ def generate_three_options():
 
     random.shuffle(options)
     return options
-
-
-
