@@ -165,6 +165,7 @@ class GameState:
         while changed:
             changed = False
 
+            # lista delle celle che hanno il tipo interessato
             cells = [
                 (r, c)
                 for r in range(self.rows)
@@ -190,79 +191,68 @@ class GameState:
                     if not np:
                         continue
 
+                    # scegli target e source
                     target, source = self.choose_target(
-                        current, neighbor, tipo,
-                        (cr, cc), (nr, nc),
-                        placed_positions
+                        current, neighbor, tipo, (cr, cc), (nr, nc), placed_positions
                     )
 
-                    source_pos = (cr, cc) if source is current else (nr, nc)
+                    # posizioni effettive degli oggetti scelti
+                    tr, tc = (cr, cc) if target is current else (nr, nc)
+                    sr, sc = (cr, cc) if source is current else (nr, nc)
 
-                    tp = target.get_piece(tipo)
-                    sp = source.get_piece(tipo)
+                    # potrebbero essere stati rimossi in un passaggio precedente
+                    if self.grid[tr][tc] is None or self.grid[sr][sc] is None:
+                        continue
 
+                    tp = self.grid[tr][tc].get_piece(tipo)
+                    sp = self.grid[sr][sc].get_piece(tipo)
                     if not tp or not sp:
                         continue
 
                     total = tp.count + sp.count
 
-                    # =====================
-                    # CASO OVERFLOW (completa torta)
-                    # =====================
+                    # OVERFLOW: target completa e si rimuove
                     if total > 6:
-                        needed = 6 - tp.count  # fette necessarie per completare
+                        needed = 6 - tp.count
+                        moved = self.grid[sr][sc].remove(tipo, needed)
+                        self.grid[tr][tc].add(tipo, moved)
 
-                        # sposta solo quelle necessarie
-                        source.remove(tipo, needed)
-                        target.add(tipo, needed)
-
-                        # completa torta
-                        # completa torta
+                        # punteggio torta completata
                         self.score += 10
 
-                        # rimuovi il piatto COMPLETAMENTE
-                        tr, tc = (cr, cc) if target is current else (nr, nc)
+                        # rimuovi SUBITO il target che ha completato
                         self.grid[tr][tc] = None
 
-                        # se la source è vuota libera la cella
-                        if source.is_empty():
-                            sr, sc = source_pos
+                        # se la source è rimasta vuota, rimuovi SUBITO
+                        if self.grid[sr][sc] and self.grid[sr][sc].is_empty():
                             self.grid[sr][sc] = None
 
-                        # sicurezza: se anche il target è rimasto vuoto rimuovilo
-                        if target.is_empty():
-                            tr, tc = (cr, cc) if target is current else (nr, nc)
-                            self.grid[tr][tc] = None
-
                         changed = True
+                        # passa al prossimo vicino (non usare più current/neighbor appena rimossi)
+                        continue
 
-                    # =====================
-                    # CASO NORMALE
-                    # =====================
-                    else:
-                        moved = source.remove(tipo, sp.count)
-                        target.add(tipo, moved)
+                    # CASO NORMALE: sposti tutte le fette della source sul target
+                    moved = self.grid[sr][sc].remove(tipo, sp.count)
+                    self.grid[tr][tc].add(tipo, moved)
 
-                        # 🔥 se raggiunge 6 → torta completata
-                        tp_after = target.get_piece(tipo)
-                        if tp_after and tp_after.count == 6:
-                            tr, tc = (cr, cc) if target is current else (nr, nc)
-                            self.grid[tr][tc] = None
-                            self.score += 10
-                        else:
-                            if source.is_empty():
-                                sr, sc = source_pos
-                                self.grid[sr][sc] = None
+                    # se il target raggiunge 6, rimuovilo SUBITO e assegna punteggio
+                    tp_after = self.grid[tr][tc].get_piece(tipo)
+                    if tp_after and tp_after.count == 6:
+                        self.grid[tr][tc] = None
+                        self.score += 10
 
-                        changed = True
+                    # se la source è diventata vuota, rimuovila SUBITO
+                    if self.grid[sr][sc] and self.grid[sr][sc].is_empty():
+                        self.grid[sr][sc] = None
 
-                    # pulizia finale celle vuote (sicurezza assoluta)
+                    changed = True
+
+        # pulizia finale di sicurezza (se rimane qualcosa vuoto)
         for r in range(self.rows):
             for c in range(self.cols):
                 plate = self.grid[r][c]
                 if plate and plate.is_empty():
                     self.grid[r][c] = None
-
 
     # =========================
     #  CLEANUP

@@ -21,7 +21,6 @@ class Game:
             alt_cella=60,
             padding=12
         )
-
         self.button_pause = Button(x_pos_button, 20, w_button, h_button,
                                    "Sprites/Button/button_pause.png")
         # Stato logico del gioco
@@ -59,13 +58,21 @@ class Game:
                 y += self.options_spacing
 
     def draw(self, window):
+        # Sincronizza: se uno sprite è piazzato su una cella che ora è vuota, nascondilo
+        for sp in self.sprites:
+            if sp.placed and sp.placed_cell:
+                r, c = sp.placed_cell
+                if self.state.grid[r][c] is None:
+                    sp.visible = False
+
         self.tavolo.draw(window)
         self.button_pause.draw(window)
 
+        # Disegna opzioni (solo quelle visibili)
         for sp in self.sprites:
             sp.draw(window)
 
-        # piatti piazzati
+        # Piatti piazzati dalla griglia
         for r in range(self.state.rows):
             for c in range(self.state.cols):
                 plate = self.state.grid[r][c]
@@ -77,7 +84,7 @@ class Game:
                     plate_size = min(self.tavolo.larg_cella, self.tavolo.alt_cella)
                     Assets.draw_plate(window, plate, center_x, center_y, plate_size=plate_size)
 
-        # aggiorna barra (animazione)
+        # Barra punteggio
         self.score_bar.update()
         label = "Prossima torta" if self.unlock.get_next_threshold() is not None else "Tutte sbloccate"
         self.score_bar.draw(window, label=label)
@@ -100,6 +107,14 @@ class Game:
             # se abbiamo sbloccato una nuova torta, rigenera le opzioni con tipi aggiornati
             if unlocked:
                 self.generate_options()
+
+        # Pulizia immediata sprite piazzati le cui celle sono ora vuote
+        # (effetto visivo immediato post-merge/completamento)
+        for sp in self.sprites:
+            if sp.placed and sp.placed_cell:
+                r, c = sp.placed_cell
+                if self.state.grid[r][c] is None:
+                    sp.visible = False
 
     def gest_eventi(self, posizione_mouse, event=None):
         if event and event.type == pygame.MOUSEBUTTONDOWN:
@@ -136,6 +151,7 @@ class Game:
 
                         if ok:
                             self.drag_sprite.snap_to_cell_topleft(self._cell_topleft(r, c))
+                            self.drag_sprite.placed_cell = (r, c)  # lega sprite alla cella
                         else:
                             self.drag_sprite.reset_to_start()
                     else:
@@ -146,7 +162,10 @@ class Game:
                 self.drag_sprite.stop_drag()
                 self.drag_sprite = None
 
+                # Se tutti sono piazzati, rigenera
                 if all(sp.placed for sp in self.sprites):
                     self.generate_options()
 
         return None
+
+
