@@ -158,101 +158,153 @@ class GameState:
     # =========================
     #  MERGE LOGIC
     # =========================
-
     def chain_merge_from_type(self, tipo, placed_positions):
         changed = True
+
+        def neighbors4_cells(r, c):
+            for dr, dc in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
+                rr, cc = r + dr, c + dc
+                if 0 <= rr < self.rows and 0 <= cc < self.cols:
+                    yield rr, cc
+
+        def build_cluster():
+            """Trova tutti i cluster connessi per 'tipo'. Ritorna lista di cluster, ciascuno lista di (r,c)."""
+            visited = [[False] * self.cols for _ in range(self.rows)]
+            clusters = []
+            for r in range(self.rows):
+                for c in range(self.cols):
+                    plate = self.grid[r][c]
+                    if not plate or not plate.get_piece(tipo) or visited[r][c]:
+                        continue
+                    # BFS/DFS
+                    comp = []
+                    stack = [(r, c)]
+                    visited[r][c] = True
+                    while stack:
+                        cr, cc = stack.pop()
+                        comp.append((cr, cc))
+                        for nr, nc in neighbors4_cells(cr, cc):
+                            if visited[nr][nc]:
+                                continue
+                            nplate = self.grid[nr][nc]
+                            if nplate and nplate.get_piece(tipo):
+                                visited[nr][nc] = True
+                                stack.append((nr, nc))
+                    if len(comp) >= 2:
+                        clusters.append(comp)
+            return clusters
+
+        def choose_cluster_target(cluster):
+            """Scegli un target “migliore” dentro al cluster.
+               Criteri:
+               - più fette del tipo
+               - tie: piatto più “puro” (meno tipi)
+               - tie: posizione più alta/sinistra
+            """
+            best = None
+            for (r, c) in cluster:
+                plate = self.grid[r][c]
+                p = plate.get_piece(tipo)
+                if not p:
+                    continue
+                score_tuple = (p.count, -len(plate.pieces), -r, -c)
+                if best is None or score_tuple > best[0]:
+                    best = (score_tuple, (r, c))
+            return best[1] if best else None
 
         while changed:
             changed = False
 
-            # lista delle celle che hanno il tipo interessato
-            cells = [
-                (r, c)
-                for r in range(self.rows)
-                for c in range(self.cols)
-                if self.grid[r][c] and self.grid[r][c].get_piece(tipo)
-            ]
+            # costruisci cluster per questo tipo
+            clusters = build_cluster()
+            if not clusters:
+                break
 
-            for cr, cc in cells:
-                current = self.grid[cr][cc]
-                if not current:
+            for cluster in clusters:
+                # scegli target del cluster
+                tgt_pos = choose_cluster_target(cluster)
+                if not tgt_pos:
+                    continue
+                tr, tc = tgt_pos
+
+                # nel caso il target sia stato rimosso (sicurezza)
+                if self.grid[tr][tc] is None:
                     continue
 
-                cp = current.get_piece(tipo)
-                if not cp:
+                # ordina le sorgenti: prima quelle con più fette del tipo
+                sources = [(r, c) for (r, c) in cluster if (r, c) != (tr, tc)]
+                sources.sort(
+                    key=lambda pos: self.grid[pos[0]][pos[1]].get_piece(tipo).count if self.grid[pos[0]][pos[1]] else 0,
+                    reverse=True)
+
+                target_plate = self.grid[tr][tc]
+                tp = target_plate.get_piece(tipo)
+                if not tp:
                     continue
 
-                for nr, nc in self.neighbors4(cr, cc):
-                    neighbor = self.grid[nr][nc]
-                    if not neighbor:
+                # merge multi-sorgente verso target
+                for sr, sc in sources:
+                    src_plate = self.grid[sr][sc]
+                    if not src_plate:
+                        continue
+                    sp = src_plate.get_piece(tipo)
+                    if not sp:
                         continue
 
-                    np = neighbor.get_piece(tipo)
-                    if not np:
-                        continue
+                    # se target già rimosso (per completamento precedente), fermati
+                    if self.grid[tr][tc] is None:
+                        break
 
-                    # scegli target e source
-                    target, source = self.choose_target(
-                        current, neighbor, tipo, (cr, cc), (nr, nc), placed_positions
-                    )
+                    # calcola totale se spostassimo tutto
+                    tp_now = target_plate.get_piece(tipo)
+                    total = tp_now.count + sp.count
 
-                    # posizioni effettive degli oggetti scelti
-                    tr, tc = (cr, cc) if target is current else (nr, nc)
-                    sr, sc = (cr, cc) if source is current else (nr, nc)
-
-                    # potrebbero essere stati rimossi in un passaggio precedente
-                    if self.grid[tr][tc] is None or self.grid[sr][sc] is None:
-                        continue
-
-                    tp = self.grid[tr][tc].get_piece(tipo)
-                    sp = self.grid[sr][sc].get_piece(tipo)
-                    if not tp or not sp:
-                        continue
-
-                    total = tp.count + sp.count
-
-                    # OVERFLOW: target completa e si rimuove
                     if total > 6:
-                        needed = 6 - tp.count
-                        moved = self.grid[sr][sc].remove(tipo, needed)
-                        self.grid[tr][tc].add(tipo, moved)
+                        # sposta solo quanto serve per arrivare a 6
+                        needed = 6 - tp_now.count
+                        moved = src_plate.remove(tipo, needed)
+                        target_plate.add(tipo, moved)
 
-                        # punteggio torta completata
+                        # torta completata: rimuovi target subito, punteggio
                         self.score += 10
-
-                        # rimuovi SUBITO il target che ha completato
                         self.grid[tr][tc] = None
+                        target_plate = None  # non usarlo più
 
-                        # se la source è rimasta vuota, rimuovi SUBITO
-                        if self.grid[sr][sc] and self.grid[sr][sc].is_empty():
+                        # se source diventa vuota, rimuovila subito
+                        if src_plate.is_empty():
                             self.grid[sr][sc] = None
 
                         changed = True
-                        # passa al prossimo vicino (non usare più current/neighbor appena rimossi)
-                        continue
+                        break  # target non esiste più, finito cluster
+                    else:
+                        # sposta tutto dalla source al target
+                        moved = src_plate.remove(tipo, sp.count)
+                        target_plate.add(tipo, moved)
 
-                    # CASO NORMALE: sposti tutte le fette della source sul target
-                    moved = self.grid[sr][sc].remove(tipo, sp.count)
-                    self.grid[tr][tc].add(tipo, moved)
+                        # se la source è vuota: rimuovi subito
+                        if src_plate.is_empty():
+                            self.grid[sr][sc] = None
 
-                    # se il target raggiunge 6, rimuovilo SUBITO e assegna punteggio
-                    tp_after = self.grid[tr][tc].get_piece(tipo)
-                    if tp_after and tp_after.count == 6:
-                        self.grid[tr][tc] = None
-                        self.score += 10
+                        # se target raggiunge 6: rimuovi subito e assegna punteggio
+                        tp_after = target_plate.get_piece(tipo)
+                        if tp_after and tp_after.count == 6:
+                            self.grid[tr][tc] = None
+                            target_plate = None
+                            self.score += 10
+                            changed = True
+                            break
+                        else:
+                            changed = True
 
-                    # se la source è diventata vuota, rimuovila SUBITO
-                    if self.grid[sr][sc] and self.grid[sr][sc].is_empty():
-                        self.grid[sr][sc] = None
+                # Se non abbiamo completato il target (non rimosso), prova anche a fondere tra target e vicini rimanenti
+                # Il ciclo sopra in genere basta; lasciamo la logica pairwise per eventuali catene residue.
 
-                    changed = True
-
-        # pulizia finale di sicurezza (se rimane qualcosa vuoto)
-        for r in range(self.rows):
-            for c in range(self.cols):
-                plate = self.grid[r][c]
-                if plate and plate.is_empty():
-                    self.grid[r][c] = None
+            # pulizia finale di sicurezza
+            for r in range(self.rows):
+                for c in range(self.cols):
+                    plate = self.grid[r][c]
+                    if plate and plate.is_empty():
+                        self.grid[r][c] = None
 
     # =========================
     #  CLEANUP
