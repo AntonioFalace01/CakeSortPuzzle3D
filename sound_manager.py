@@ -175,3 +175,20 @@ class SoundManager:
                 return "resume_settings"
 
         return None
+
+
+class SFX:
+    pickup = None
+    place = None
+    #merge = None
+    #complete = None
+    #unlock = None
+
+    @classmethod
+    def init(cls):
+        cls.pickup = pygame.mixer.Sound("Audio/pickup.wav")
+        cls.place = pygame.mixer.Sound("Audio/place.wav")
+        #cls.merge = pygame.mixer.Sound("Audio/merge.wav")
+        #cls.complete = pygame.mixer.Sound("Audio/complete.wav")
+        #cls.unlock = pygame.mixer.Sound("Audio/unlock.wav")
+

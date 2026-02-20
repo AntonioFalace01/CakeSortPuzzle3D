@@ -1,4 +1,5 @@
 import random
+from sound_manager import SFX
 
 
 class Piece:
@@ -118,6 +119,14 @@ class GameState:
     #  TARGET SELECTION (FIX)
     # =========================
 
+    def count_matching_neighbors(self, r, c, tipo):
+        count = 0
+        for nr, nc in self.neighbors4(r, c):
+            plate = self.grid[nr][nc]
+            if plate and plate.get_piece(tipo):
+                count += 1
+        return count
+
     def choose_target(self, plate_a, plate_b, tipo, pos_a, pos_b, placed_positions):
         pa = plate_a.get_piece(tipo)
         pb = plate_b.get_piece(tipo)
@@ -128,31 +137,40 @@ class GameState:
         a_pure = len(plate_a.pieces) == 1
         b_pure = len(plate_b.pieces) == 1
 
-        # ⭐ Regola calamita del gioco originale
-
+        # 1️⃣ COMBO: il nuovo piatto attira se collega più celle dello stesso tipo
         if a_is_new and not b_is_new:
-            if a_pure:
+            if self.count_matching_neighbors(*pos_a, tipo) > 1:
                 return plate_a, plate_b
-            else:
-                return plate_b, plate_a
 
         if b_is_new and not a_is_new:
-            if b_pure:
+            if self.count_matching_neighbors(*pos_b, tipo) > 1:
                 return plate_b, plate_a
-            else:
-                return plate_a, plate_b
 
-        # comportamento normale (combo tra vecchi piatti)
+        # 2️⃣ PURO vs MISTO → vince il PURO (isola gli altri tipi)
+        if a_pure and not b_pure:
+            return plate_a, plate_b
+        if b_pure and not a_pure:
+            return plate_b, plate_a
+
+        # 3️⃣ se entrambi puri → il nuovo attira
+        if a_pure and b_pure:
+            if a_is_new and not b_is_new:
+                return plate_a, plate_b
+            if b_is_new and not a_is_new:
+                return plate_b, plate_a
+
+        # 4️⃣ quantità maggiore vince
         if pa.count > pb.count:
             return plate_a, plate_b
         if pb.count > pa.count:
             return plate_b, plate_a
 
-        # tie breaker spaziale
+        # 5️⃣ tie-break spaziale
         (ra, ca) = pos_a
         (rb, cb) = pos_b
         if rb > ra or (rb == ra and cb > ca):
             return plate_b, plate_a
+
         return plate_a, plate_b
 
     # =========================
@@ -220,10 +238,16 @@ class GameState:
                         # punteggio torta completata
                         self.score += 10
 
-                        # rimuovi SUBITO il target che ha completato
-                        self.grid[tr][tc] = None
+                        # rimuovi SOLO il tipo completato dal target
+                        self.grid[tr][tc].remove(tipo, 6)
+                        self.score += 10
 
-                        # se la source è rimasta vuota, rimuovi SUBITO
+                        # se il piatto target è vuoto dopo la rimozione, elimina la cella
+                        if self.grid[tr][tc].is_empty():
+                            self.grid[tr][tc] = None
+
+                        # la source non va eliminata se contiene altri tipi
+                        # quindi rimuovi solo se veramente vuota
                         if self.grid[sr][sc] and self.grid[sr][sc].is_empty():
                             self.grid[sr][sc] = None
 
