@@ -31,7 +31,7 @@ class PlateSprite:
 
     def start_drag(self, mouse_pos):
         if self.rect.collidepoint(mouse_pos) and not self.placed:
-            #SFX.pickup.play()
+            SFX.pickup.play()
             self.dragging = True
             mx, my = mouse_pos
             rx, ry = self.rect.topleft

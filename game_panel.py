@@ -152,7 +152,7 @@ class Game:
                         self._handle_score_unlocks(prev_score, new_score)
 
                         if ok:
-                            #SFX.place.play()
+                            SFX.place.play()
                             self.drag_sprite.snap_to_cell_topleft(self._cell_topleft(r, c))
                             self.drag_sprite.placed_cell = (r, c)  # lega sprite alla cella
                         else:
