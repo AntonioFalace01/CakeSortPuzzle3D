@@ -24,9 +24,19 @@ class MovingSlice:
         if slice_key:
             # usa lo stesso metodo slice ma un po' più piccolo (50% del plate)
             target = int(plate_size * 0.5)
-            self.img = pygame.transform.smoothscale(
+            base_img = pygame.transform.smoothscale(
                 Assets._slice_src[slice_key], (target, target)
             )
+
+            # crea immagine composta con le fette unite
+            offset = 8  # distanza tra fette
+            width = target + (self.count - 1) * offset
+            height = target
+
+            self.img = pygame.Surface((width, height), pygame.SRCALPHA)
+
+            for i in range(self.count):
+                self.img.blit(base_img, (i * offset, 0))
         else:
             self.img = None
 
@@ -47,14 +57,12 @@ class MovingSlice:
         x = self.start_x + (self.end_x - self.start_x) * alpha
         y = self.start_y + (self.end_y - self.start_y) * alpha
 
+        # arco morbido
+        arc_height = -20
+        y += arc_height * math.sin(alpha * math.pi)
         if self.img:
-            # se ci sono più fette, le sfalsiamo leggermente
-            offset_step = 6
-            for i in range(self.count):
-                ox = x + (i - (self.count - 1) / 2) * offset_step
-                oy = y
-                rect = self.img.get_rect(center=(ox, oy))
-                surface.blit(self.img, rect)
+            rect = self.img.get_rect(center=(x, y))
+            surface.blit(self.img, rect)
         else:
             # fallback: piccolo cerchio colorato
             r = 6
