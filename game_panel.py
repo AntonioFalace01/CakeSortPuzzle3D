@@ -5,6 +5,7 @@ from button import Button
 from score_bar import ScoreBar
 from table import Table
 from assets import Assets, UnlockManager
+from sound_manager import SFX
 
 
 class Game:
@@ -107,6 +108,7 @@ class Game:
             # se abbiamo sbloccato una nuova torta, rigenera le opzioni con tipi aggiornati
             if unlocked:
                 self.generate_options()
+                #SFX.unlock.play()
 
         # Pulizia immediata sprite piazzati le cui celle sono ora vuote
         # (effetto visivo immediato post-merge/completamento)
@@ -150,6 +152,7 @@ class Game:
                         self._handle_score_unlocks(prev_score, new_score)
 
                         if ok:
+                            SFX.place.play()
                             self.drag_sprite.snap_to_cell_topleft(self._cell_topleft(r, c))
                             self.drag_sprite.placed_cell = (r, c)  # lega sprite alla cella
                         else:

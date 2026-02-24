@@ -9,6 +9,10 @@ from sound_manager import SoundManager
 
 pygame.init()
 pygame.mixer.init()
+
+from sound_manager import SFX
+
+SFX.init()
 pygame.mixer.music.load("Audio/bg-audio.mp3")
 pygame.mixer.music.set_volume(0.1)
 pygame.mixer.music.play(-1)

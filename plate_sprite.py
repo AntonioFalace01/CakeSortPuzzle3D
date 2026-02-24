@@ -1,5 +1,6 @@
 import pygame
 from assets import Assets
+from sound_manager import SFX
 
 class PlateSprite:
     def __init__(self, plate, x, y, image_path="Sprites/plate.png", cell_size=(60,60)):
@@ -30,6 +31,7 @@ class PlateSprite:
 
     def start_drag(self, mouse_pos):
         if self.rect.collidepoint(mouse_pos) and not self.placed:
+            SFX.pickup.play()
             self.dragging = True
             mx, my = mouse_pos
             rx, ry = self.rect.topleft
