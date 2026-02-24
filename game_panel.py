@@ -3,6 +3,7 @@ from cake_sort_engine import GameState, generate_three_options_active
 from plate_sprite import PlateSprite
 from button import Button
 from score_bar import ScoreBar
+from slice_animation import MovingSlice
 from table import Table
 from assets import Assets, UnlockManager
 from sound_manager import SFX
@@ -40,12 +41,34 @@ class Game:
         self.options_area = (40, 120)
         self.options_spacing = 80
         self.cell_size = (58, 58)
-
+        self.last_time = pygame.time.get_ticks()
         self.current_options = []
         self.sprites = []
         self.drag_sprite = None
-
+        self.slice_animations = []
         self.generate_options()
+
+    def _spawn_slice_animations_from_events(self):
+        """
+        Legge self.state.last_animation_events e genera
+        una MovingSlice per ciascun evento.
+        """
+        self.slice_animations = []
+
+        for ev in self.state.last_animation_events:
+            tipo = ev["tipo"]
+            count = ev["count"]
+            (r0, c0) = ev["from"]
+            (r1, c1) = ev["to"]
+
+            # converte cella (r,c) in coordinate pixel (centro)
+            sx, sy = self._cell_center(r0, c0)
+            ex, ey = self._cell_center(r1, c1)
+
+            # la durata puoi regolarla a piacere (0.20–0.35 secondi va bene)
+            anim = MovingSlice(tipo, (sx, sy), (ex, ey), duration=0.25, count=count, plate_size=self.tavolo.larg_cella)
+            self.slice_animations.append(anim)
+
 
     def generate_options(self):
         self.current_options = generate_three_options_active(self.unlock.active_types)
@@ -59,6 +82,11 @@ class Game:
                 y += self.options_spacing
 
     def draw(self, window):
+        # calcolo dt (in secondi)
+        now = pygame.time.get_ticks()
+        dt = (now - self.last_time) / 1000.0
+        self.last_time = now
+
         # Sincronizza: se uno sprite è piazzato su una cella che ora è vuota, nascondilo
         for sp in self.sprites:
             if sp.placed and sp.placed_cell:
@@ -73,7 +101,7 @@ class Game:
         for sp in self.sprites:
             sp.draw(window)
 
-        # Piatti piazzati dalla griglia
+        # Piatti piazzati sulla griglia
         for r in range(self.state.rows):
             for c in range(self.state.cols):
                 plate = self.state.grid[r][c]
@@ -85,15 +113,36 @@ class Game:
                     plate_size = min(self.tavolo.larg_cella, self.tavolo.alt_cella)
                     Assets.draw_plate(window, plate, center_x, center_y, plate_size=plate_size)
 
+        # aggiorna animazioni di fette
+        alive_anims = []
+        for anim in self.slice_animations:
+            anim.update(dt)
+            if anim.alive:
+                alive_anims.append(anim)
+        self.slice_animations = alive_anims
+
+        # disegna animazioni sopra i piatti
+        for anim in self.slice_animations:
+            anim.draw(window)
+
         # Barra punteggio
-        self.score_bar.update()
+        self.score_bar.update(dt)
         label = "Prossima torta" if self.unlock.get_next_threshold() is not None else "Tutte sbloccate"
         self.score_bar.draw(window, label=label)
+
 
     def _cell_topleft(self, r, c):
         cx = self.tavolo.x + self.tavolo.padding + c * self.tavolo.larg_cella
         cy = self.tavolo.y + self.tavolo.padding + r * self.tavolo.alt_cella
         return (cx, cy)
+
+    def _cell_center(self, r, c):
+        cx_cell = self.tavolo.x + self.tavolo.padding + c * self.tavolo.larg_cella
+        cy_cell = self.tavolo.y + self.tavolo.padding + r * self.tavolo.alt_cella
+        center_x = cx_cell + self.tavolo.larg_cella // 2
+        center_y = cy_cell + self.tavolo.alt_cella // 2
+        return center_x, center_y
+
 
     def _handle_score_unlocks(self, prev_score, new_score):
         delta = max(0, new_score - prev_score)
@@ -148,8 +197,10 @@ class Game:
                         prev_score = self.state.score
                         ok = self.state.place_block(block, r, c)
                         new_score = self.state.score
-                        # gestisci sblocchi in base al delta di score ottenuto
-                        self._handle_score_unlocks(prev_score, new_score)
+                        if ok:
+                            self._spawn_slice_animations_from_events()
+                            # gestisci sblocchi in base al delta di score ottenuto
+                            self._handle_score_unlocks(prev_score, new_score)
 
                         if ok:
                             SFX.place.play()

@@ -57,6 +57,17 @@ class GameState:
         self.cols = cols
         self.grid = [[None for _ in range(cols)] for _ in range(rows)]
         self.score = 0
+        self.last_animation_events = []
+
+    def _add_anim_event(self, tipo, count, from_pos, to_pos):
+        if from_pos == to_pos or count <= 0:
+            return
+        self.last_animation_events.append({
+            "tipo": tipo,
+            "count": count,
+            "from": from_pos,   # (r, c)
+            "to": to_pos        # (r, c)
+        })
 
     def print_grid(self):
         for r in range(self.rows):
@@ -80,7 +91,7 @@ class GameState:
         orientation = block["orientation"]
         plates = block["plates"]
         positions = []
-
+        self.last_animation_events = []
         if orientation == "H":
             positions = [(start_r, start_c + i) for i in range(len(plates))]
         elif orientation == "V":
@@ -233,6 +244,7 @@ class GameState:
                     if total > 6:
                         needed = 6 - tp.count
                         moved = self.grid[sr][sc].remove(tipo, needed)
+                        self._add_anim_event(tipo, moved, (sr, sc), (tr, tc))
                         self.grid[tr][tc].add(tipo, moved)
 
                         # punteggio torta completata
@@ -257,6 +269,7 @@ class GameState:
 
                     # CASO NORMALE: sposti tutte le fette della source sul target
                     moved = self.grid[sr][sc].remove(tipo, sp.count)
+                    self._add_anim_event(tipo, moved, (sr, sc), (tr, tc))
                     self.grid[tr][tc].add(tipo, moved)
 
                     # se il target raggiunge 6, rimuovilo SUBITO e assegna punteggio
