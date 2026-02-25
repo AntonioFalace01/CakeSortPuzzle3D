@@ -1,4 +1,5 @@
 import random
+from time import sleep
 from sound_manager import SFX
 
 
@@ -58,6 +59,7 @@ class GameState:
         self.grid = [[None for _ in range(cols)] for _ in range(rows)]
         self.score = 0
         self.last_animation_events = []
+        self.plates_to_remove = []
 
     def _add_anim_event(self, tipo, count, from_pos, to_pos):
         if from_pos == to_pos or count <= 0:
@@ -256,7 +258,7 @@ class GameState:
 
                         # se il piatto target è vuoto dopo la rimozione, elimina la cella
                         if self.grid[tr][tc].is_empty():
-                            self.grid[tr][tc] = None
+                            self.plates_to_remove.append((tr, tc))
 
                         # la source non va eliminata se contiene altri tipi
                         # quindi rimuovi solo se veramente vuota
@@ -275,7 +277,7 @@ class GameState:
                     # se il target raggiunge 6, rimuovilo SUBITO e assegna punteggio
                     tp_after = self.grid[tr][tc].get_piece(tipo)
                     if tp_after and tp_after.count == 6:
-                        self.grid[tr][tc] = None
+                        self.plates_to_remove.append((tr, tc))
                         self.score += 10
 
                     # se la source è diventata vuota, rimuovila SUBITO
@@ -289,7 +291,7 @@ class GameState:
             for c in range(self.cols):
                 plate = self.grid[r][c]
                 if plate and plate.is_empty():
-                    self.grid[r][c] = None
+                    self.plates_to_remove.append((r, c))
 
     # =========================
     #  CLEANUP
@@ -308,9 +310,15 @@ class GameState:
 
                 for p in plate.pieces:
                     if p.count >= 6:
-                        self.grid[r][c] = None
+                        self.plates_to_remove.append((r, c))
                         self.score += 10
                         break
+
+    def finalize_removals(self):
+        for r, c in self.plates_to_remove:
+            if self.grid[r][c] is not None:
+                self.grid[r][c] = None
+        self.plates_to_remove.clear()
 
 def generate_random_plate_active(active_types):
     tipi = list(active_types)

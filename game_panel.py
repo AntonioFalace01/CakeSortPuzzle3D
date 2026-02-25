@@ -91,7 +91,7 @@ class Game:
         for sp in self.sprites:
             if sp.placed and sp.placed_cell:
                 r, c = sp.placed_cell
-                if self.state.grid[r][c] is None:
+                if self.state.grid[r][c] is None and (r, c) not in self.state.plates_to_remove:
                     sp.visible = False
 
         self.tavolo.draw(window)
@@ -114,11 +114,17 @@ class Game:
                     Assets.draw_plate(window, plate, center_x, center_y, plate_size=plate_size)
 
         # aggiorna animazioni di fette
+        # aggiorna animazioni
         alive_anims = []
         for anim in self.slice_animations:
             anim.update(dt)
             if anim.alive:
                 alive_anims.append(anim)
+
+        # se tutte finite → rimuovi piatti completati
+        if self.slice_animations and not alive_anims:
+            self.state.finalize_removals()
+
         self.slice_animations = alive_anims
 
         # disegna animazioni sopra i piatti
