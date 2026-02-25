@@ -66,7 +66,7 @@ class Game:
             ex, ey = self._cell_center(r1, c1)
 
             # la durata puoi regolarla a piacere (0.20–0.35 secondi va bene)
-            anim = MovingSlice(tipo, (sx, sy), (ex, ey), duration=0.25, count=count, plate_size=self.tavolo.larg_cella)
+            anim = MovingSlice(tipo, (sx, sy), (ex, ey), duration=0.50, count=count, plate_size=self.tavolo.larg_cella)
             self.slice_animations.append(anim)
 
 
