@@ -116,7 +116,6 @@ class Assets:
     @classmethod
     def draw_plate(cls, surface, plate, center_x, center_y, plate_size=60):
 
-        # 1️⃣ Disegna il piatto
         plate_img = cls._get_plate_image(plate_size)
         plate_rect = plate_img.get_rect(center=(center_x, center_y))
         surface.blit(plate_img, plate_rect)
@@ -127,6 +126,7 @@ class Assets:
         MAX_SLICES = 6
         angle_step = 360 / MAX_SLICES
         current_angle = 0
+        drawn = 0  # ← NUOVO CONTATORE
 
         for piece in plate.pieces:
 
@@ -138,16 +138,13 @@ class Assets:
 
             for _ in range(piece.count):
 
-                # 🔁 Ruota fetta
+                if drawn >= MAX_SLICES:  # ← STOP se già 6 fette
+                    break
+
                 rotated = pygame.transform.rotate(img, -current_angle + 180)
 
-                # 🎯 CALCOLO DISTANZA DINAMICA
-                # raggio = metà altezza fetta (leggermente ridotto per combaciare meglio)
                 r = plate_size * 0.24
-
-
                 radianti = math.radians(current_angle)
-
                 offset_x = math.sin(radianti) * r
                 offset_y = -math.cos(radianti) * r
 
@@ -158,8 +155,10 @@ class Assets:
                 surface.blit(rotated, rect)
 
                 current_angle += angle_step
+                drawn += 1  # ← INCREMENTA
 
-    # ------------------ SOLO PIATTO ------------------
+            if drawn >= MAX_SLICES:  # ← STOP anche dal loop esterno
+                break
 
     @classmethod
     def draw_plate_only(cls, surface, x, y, size=60):

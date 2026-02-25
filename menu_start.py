@@ -9,9 +9,9 @@ class MenuStart:
         w_button = 190
         h_button = 90
         self.table = Table(100,100)
-        self.button_start= Button(x_pos_button, 210, w_button, h_button, "Sprites/Button/button_start.png")
-        self.button_quit= Button(x_pos_button, 270, w_button, h_button, "Sprites/Button/button_quit.png")
-        self.button_settings = Button(x_pos_button, 330, w_button, h_button, "Sprites/Button/button_settings.png")
+        self.button_start= Button(x_pos_button, 216, w_button, h_button, "Sprites/Button/button_start.png")
+        self.button_settings = Button(x_pos_button, 270, w_button, h_button, "Sprites/Button/button_settings.png")
+        self.button_quit = Button(x_pos_button, 324, w_button, h_button, "Sprites/Button/button_quit.png")
 
     def draw(self, window):
         #self.table.draw(window)
@@ -34,9 +34,9 @@ class MenuPause(MenuStart):
         x_pos_button = 250
         w_button = 190
         h_button = 90
-        self.button_resume = Button(x_pos_button, 130, w_button, h_button, "Sprites/Button/button_resume.png")
-        self.button_quit = Button(x_pos_button, 190, w_button, h_button, "Sprites/Button/button_quit.png")
-        self.button_settings = Button(x_pos_button, 250, w_button, h_button, "Sprites/Button/button_settings.png")
+        self.button_resume = Button(x_pos_button, 136, w_button, h_button, "Sprites/Button/button_resume.png")
+        self.button_settings = Button(x_pos_button, 190, w_button, h_button, "Sprites/Button/button_settings.png")
+        self.button_quit = Button(x_pos_button, 244, w_button, h_button, "Sprites/Button/button_quit.png")
 
     def draw(self, window):
         # self.table.draw(window)
