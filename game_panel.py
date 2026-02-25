@@ -25,50 +25,48 @@ class Game:
         )
         self.button_pause = Button(x_pos_button, 20, w_button, h_button,
                                    "Sprites/Button/button_pause.png")
-        # Stato logico del gioco
+
+        # LOGICA
         self.state = GameState(rows=5, cols=4)
 
-        # Sistema sblocchi + barra
+        # STATO VISUALE (ciò che viene disegnato)
+        self.visual_grid_current = [[None for _ in range(self.state.cols)] for _ in range(self.state.rows)]
+        self.visual_grid_next = [[None for _ in range(self.state.cols)] for _ in range(self.state.rows)]
+        self._sync_visual_with_logical_initial()
+
+        # Unlock + barra
         self.unlock = UnlockManager()
         self.score_bar = ScoreBar(x=250, y=40, width=200, height=100, image_path="Sprites/barra.png")
-
-        # imposta barra sulla prossima soglia
-        next_thr = self.unlock.get_next_threshold()
-        if next_thr is None:
-            next_thr = 1
+        next_thr = self.unlock.get_next_threshold() or 1
         self.score_bar.set_progress(self.unlock.total_score, next_thr)
 
         self.options_area = (40, 120)
         self.options_spacing = 80
         self.cell_size = (58, 58)
-        self.last_time = pygame.time.get_ticks()
+
         self.current_options = []
         self.sprites = []
         self.drag_sprite = None
+
+        # Animazioni
         self.slice_animations = []
+        self.animating = False   # quando True, stiamo giocando una transizione visuale
+
+        # tempo per dt
+        self.last_time = pygame.time.get_ticks()
+
         self.generate_options()
 
-    def _spawn_slice_animations_from_events(self):
-        """
-        Legge self.state.last_animation_events e genera
-        una MovingSlice per ciascun evento.
-        """
-        self.slice_animations = []
+    # ------------------ INIT VISUALE ------------------
 
-        for ev in self.state.last_animation_events:
-            tipo = ev["tipo"]
-            count = ev["count"]
-            (r0, c0) = ev["from"]
-            (r1, c1) = ev["to"]
+    def _sync_visual_with_logical_initial(self):
+        """Solo all'inizio: visual = logico (tutto vuoto)."""
+        for r in range(self.state.rows):
+            for c in range(self.state.cols):
+                self.visual_grid_current[r][c] = self.state.grid[r][c]
+                self.visual_grid_next[r][c] = self.state.grid[r][c]
 
-            # converte cella (r,c) in coordinate pixel (centro)
-            sx, sy = self._cell_center(r0, c0)
-            ex, ey = self._cell_center(r1, c1)
-
-            # la durata puoi regolarla a piacere (0.20–0.35 secondi va bene)
-            anim = MovingSlice(tipo, (sx, sy), (ex, ey), duration=0.25, count=count, plate_size=self.tavolo.larg_cella)
-            self.slice_animations.append(anim)
-
+    # ------------------ OPZIONI ------------------
 
     def generate_options(self):
         self.current_options = generate_three_options_active(self.unlock.active_types)
@@ -81,55 +79,7 @@ class Game:
                 self.sprites.append(sp)
                 y += self.options_spacing
 
-    def draw(self, window):
-        # calcolo dt (in secondi)
-        now = pygame.time.get_ticks()
-        dt = (now - self.last_time) / 1000.0
-        self.last_time = now
-
-        # Sincronizza: se uno sprite è piazzato su una cella che ora è vuota, nascondilo
-        for sp in self.sprites:
-            if sp.placed and sp.placed_cell:
-                r, c = sp.placed_cell
-                if self.state.grid[r][c] is None:
-                    sp.visible = False
-
-        self.tavolo.draw(window)
-        self.button_pause.draw(window)
-
-        # Disegna opzioni (solo quelle visibili)
-        for sp in self.sprites:
-            sp.draw(window)
-
-        # Piatti piazzati sulla griglia
-        for r in range(self.state.rows):
-            for c in range(self.state.cols):
-                plate = self.state.grid[r][c]
-                if plate is not None:
-                    cx_cell = self.tavolo.x + self.tavolo.padding + c * self.tavolo.larg_cella
-                    cy_cell = self.tavolo.y + self.tavolo.padding + r * self.tavolo.alt_cella
-                    center_x = cx_cell + self.tavolo.larg_cella // 2
-                    center_y = cy_cell + self.tavolo.alt_cella // 2
-                    plate_size = min(self.tavolo.larg_cella, self.tavolo.alt_cella)
-                    Assets.draw_plate(window, plate, center_x, center_y, plate_size=plate_size)
-
-        # aggiorna animazioni di fette
-        alive_anims = []
-        for anim in self.slice_animations:
-            anim.update(dt)
-            if anim.alive:
-                alive_anims.append(anim)
-        self.slice_animations = alive_anims
-
-        # disegna animazioni sopra i piatti
-        for anim in self.slice_animations:
-            anim.draw(window)
-
-        # Barra punteggio
-        self.score_bar.update(dt)
-        label = "Prossima torta" if self.unlock.get_next_threshold() is not None else "Tutte sbloccate"
-        self.score_bar.draw(window, label=label)
-
+    # ------------------ COORDINATE CELLE ------------------
 
     def _cell_topleft(self, r, c):
         cx = self.tavolo.x + self.tavolo.padding + c * self.tavolo.larg_cella
@@ -143,29 +93,125 @@ class Game:
         center_y = cy_cell + self.tavolo.alt_cella // 2
         return center_x, center_y
 
+    # ------------------ SCORE / UNLOCK ------------------
 
     def _handle_score_unlocks(self, prev_score, new_score):
         delta = max(0, new_score - prev_score)
         if delta > 0:
-            # aggiorna cumulativo e controlla sblocco
             unlocked = self.unlock.add_score(delta)
-            # aggiorna barra
-            next_thr = self.unlock.get_next_threshold()
-            if next_thr is None:
-                next_thr = 1
+            next_thr = self.unlock.get_next_threshold() or 1
             self.score_bar.set_progress(self.unlock.total_score, next_thr)
-            # se abbiamo sbloccato una nuova torta, rigenera le opzioni con tipi aggiornati
             if unlocked:
                 self.generate_options()
-                #SFX.unlock.play()
-
-        # Pulizia immediata sprite piazzati le cui celle sono ora vuote
-        # (effetto visivo immediato post-merge/completamento)
+        # pulizia sprite opzioni
         for sp in self.sprites:
             if sp.placed and sp.placed_cell:
                 r, c = sp.placed_cell
                 if self.state.grid[r][c] is None:
                     sp.visible = False
+
+    # ------------------ ANIMAZIONI ------------------
+
+    def _prepare_visual_transition(self, before_grid):
+        """
+        Costruisce visual_grid_next a partire dal before_grid e dagli eventi di animazione:
+        - visual_grid_current = before_grid (stato pre-merge, piatti completi ancora visibili)
+        - visual_grid_next = stato logico finale self.state.grid
+        L'animazione verrà disegnata mentre visual_grid_current è mostrata;
+        al termine, si passerà a visual_grid_next (dove i piatti completati sono spariti).
+        """
+        # 1) visual corrente diventa lo snapshot 'before_grid'
+        for r in range(self.state.rows):
+            for c in range(self.state.cols):
+                self.visual_grid_current[r][c] = before_grid[r][c]
+
+        # 2) visual_next parte dallo stato logico finale
+        for r in range(self.state.rows):
+            for c in range(self.state.cols):
+                self.visual_grid_next[r][c] = self.state.grid[r][c]
+
+        # 3) crea animazioni in base agli eventi
+        self.slice_animations = []
+        for ev in self.state.last_animation_events:
+            tipo = ev["tipo"]
+            count = ev["count"]
+            (r0, c0) = ev["from"]
+            (r1, c1) = ev["to"]
+
+            sx, sy = self._cell_center(r0, c0)
+            ex, ey = self._cell_center(r1, c1)
+
+            anim = MovingSlice(
+                tipo,
+                (sx, sy),
+                (ex, ey),
+                duration=0.45,        # velocità animazione
+                count=count,
+                plate_size=self.tavolo.larg_cella
+            )
+            self.slice_animations.append(anim)
+
+        self.animating = bool(self.slice_animations)
+
+    # ------------------ DRAW ------------------
+
+    def draw(self, window):
+        now = pygame.time.get_ticks()
+        dt = (now - self.last_time) / 1000.0
+        self.last_time = now
+
+        # sprite opzioni: nascondi se la cella logica è vuota
+        for sp in self.sprites:
+            if sp.placed and sp.placed_cell:
+                r, c = sp.placed_cell
+                if self.state.grid[r][c] is None:
+                    sp.visible = False
+
+        self.tavolo.draw(window)
+        self.button_pause.draw(window)
+
+        for sp in self.sprites:
+            sp.draw(window)
+
+        # Disegna piatti usando SEMPRE la griglia VISUALE CORRENTE
+        for r in range(self.state.rows):
+            for c in range(self.state.cols):
+                plate = self.visual_grid_current[r][c]
+                if plate is not None:
+                    cx_cell = self.tavolo.x + self.tavolo.padding + c * self.tavolo.larg_cella
+                    cy_cell = self.tavolo.y + self.tavolo.padding + r * self.tavolo.alt_cella
+                    center_x = cx_cell + self.tavolo.larg_cella // 2
+                    center_y = cy_cell + self.tavolo.alt_cella // 2
+                    plate_size = min(self.tavolo.larg_cella, self.tavolo.alt_cella)
+                    Assets.draw_plate(window, plate, center_x, center_y, plate_size=plate_size)
+
+        # aggiorna animazioni
+        if self.animating:
+            alive = []
+            for anim in self.slice_animations:
+                anim.update(dt)
+                if anim.alive:
+                    alive.append(anim)
+            self.slice_animations = alive
+
+            # disegna animazioni sopra
+            for anim in self.slice_animations:
+                anim.draw(window)
+
+            # se non ci sono più animazioni → passa allo stato visuale "next"
+            if not self.slice_animations:
+                # copia visual_next in visual_current (piatti completati spariscono ora)
+                for r in range(self.state.rows):
+                    for c in range(self.state.cols):
+                        self.visual_grid_current[r][c] = self.visual_grid_next[r][c]
+                self.animating = False
+
+        # barra punteggio
+        self.score_bar.update(dt)
+        label = "Prossima torta" if self.unlock.get_next_threshold() is not None else "Tutte sbloccate"
+        self.score_bar.draw(window, label=label)
+
+    # ------------------ EVENTI ------------------
 
     def gest_eventi(self, posizione_mouse, event=None):
         if event and event.type == pygame.MOUSEBUTTONDOWN:
@@ -176,6 +222,10 @@ class Game:
             return None
 
         if event.type == pygame.MOUSEBUTTONDOWN:
+            # se stiamo animando, non permettiamo di trascinare altre cose
+            if self.animating:
+                return None
+
             for sp in reversed(self.sprites):
                 sp.start_drag(posizione_mouse)
                 if sp.dragging:
@@ -187,25 +237,34 @@ class Game:
                 self.drag_sprite.update_drag(posizione_mouse)
 
         elif event.type == pygame.MOUSEBUTTONUP:
-            if self.drag_sprite:
+            if self.drag_sprite and not self.animating:
                 cell = self.tavolo.get_cell_at(posizione_mouse)
                 if cell:
                     r, c = cell
                     if self.state.grid[r][c] is None:
                         block = {"plates": [self.drag_sprite.plate], "orientation": "NONE"}
-                        # cattura score prima/dopo per calcolare delta
                         prev_score = self.state.score
+
+                        # snapshot PRIMA del merge (per lo stato visuale corrente)
+                        before_grid = [
+                            [self.state.grid[rr][cc] for cc in range(self.state.cols)]
+                            for rr in range(self.state.rows)
+                        ]
+
                         ok = self.state.place_block(block, r, c)
                         new_score = self.state.score
+
                         if ok:
-                            self._spawn_slice_animations_from_events()
-                            # gestisci sblocchi in base al delta di score ottenuto
-                            self._handle_score_unlocks(prev_score, new_score)
+                            # prepara transizione visuale (visual_current = before, visual_next = after, animazioni)
+                            self._prepare_visual_transition(before_grid)
+
+                        # sblocchi e barra
+                        self._handle_score_unlocks(prev_score, new_score)
 
                         if ok:
                             SFX.place.play()
                             self.drag_sprite.snap_to_cell_topleft(self._cell_topleft(r, c))
-                            self.drag_sprite.placed_cell = (r, c)  # lega sprite alla cella
+                            self.drag_sprite.placed_cell = (r, c)
                         else:
                             self.drag_sprite.reset_to_start()
                     else:
@@ -216,10 +275,7 @@ class Game:
                 self.drag_sprite.stop_drag()
                 self.drag_sprite = None
 
-                # Se tutti sono piazzati, rigenera
                 if all(sp.placed for sp in self.sprites):
                     self.generate_options()
 
         return None
-
-

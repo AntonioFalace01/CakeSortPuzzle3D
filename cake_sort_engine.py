@@ -57,7 +57,12 @@ class GameState:
         self.cols = cols
         self.grid = [[None for _ in range(cols)] for _ in range(rows)]
         self.score = 0
+
+        # eventi per animazioni di spostamento
         self.last_animation_events = []
+        # piatti completati (da rimuovere DOPO le animazioni)
+        # lista di dict: {"pos": (r,c), "tipo": tipo}
+        self.completed_plates = []
 
     def _add_anim_event(self, tipo, count, from_pos, to_pos):
         if from_pos == to_pos or count <= 0:
@@ -68,6 +73,12 @@ class GameState:
             "from": from_pos,   # (r, c)
             "to": to_pos        # (r, c)
         })
+
+    def _add_completed_plate(self, pos, tipo=None):
+        """Registra che il piatto in pos (r,c) è stato completato:
+           verrà rimosso dal Game a fine animazione."""
+        if pos not in [cp["pos"] for cp in self.completed_plates]:
+            self.completed_plates.append({"pos": pos, "tipo": tipo})
 
     def print_grid(self):
         for r in range(self.rows):
@@ -91,7 +102,10 @@ class GameState:
         orientation = block["orientation"]
         plates = block["plates"]
         positions = []
+        # reset eventi
         self.last_animation_events = []
+        self.completed_plates = []
+
         if orientation == "H":
             positions = [(start_r, start_c + i) for i in range(len(plates))]
         elif orientation == "V":
@@ -123,6 +137,8 @@ class GameState:
         for tipo in tipi_coinvolti:
             self.chain_merge_from_type(tipo, placed_positions)
 
+        # NIENTE più rimozione immediata in resolve_groups:
+        # la rimozione fisica verrà fatta dal Game dopo le animazioni.
         self.resolve_groups()
         return True
 
@@ -240,7 +256,7 @@ class GameState:
 
                     total = tp.count + sp.count
 
-                    # OVERFLOW: target completa e si rimuove
+                    # OVERFLOW: target completa e si "segna" come completata
                     if total > 6:
                         needed = 6 - tp.count
                         moved = self.grid[sr][sc].remove(tipo, needed)
@@ -254,17 +270,16 @@ class GameState:
                         self.grid[tr][tc].remove(tipo, 6)
                         self.score += 10
 
-                        # se il piatto target è vuoto dopo la rimozione, elimina la cella
+                        # SE ora il piatto è vuoto, NON lo eliminiamo subito:
+                        # lo segniamo come "completato" per la rimozione a fine animazione.
                         if self.grid[tr][tc].is_empty():
-                            self.grid[tr][tc] = None
+                            self._add_completed_plate((tr, tc), tipo)
 
-                        # la source non va eliminata se contiene altri tipi
-                        # quindi rimuovi solo se veramente vuota
+                        # se la source è vuota, la possiamo già togliere (non è piatto completato grafico)
                         if self.grid[sr][sc] and self.grid[sr][sc].is_empty():
                             self.grid[sr][sc] = None
 
                         changed = True
-                        # passa al prossimo vicino (non usare più current/neighbor appena rimossi)
                         continue
 
                     # CASO NORMALE: sposti tutte le fette della source sul target
@@ -272,11 +287,16 @@ class GameState:
                     self._add_anim_event(tipo, moved, (sr, sc), (tr, tc))
                     self.grid[tr][tc].add(tipo, moved)
 
-                    # se il target raggiunge 6, rimuovilo SUBITO e assegna punteggio
+                    # se il target raggiunge 6, segna come completato ma NON togli subito il piatto
                     tp_after = self.grid[tr][tc].get_piece(tipo)
                     if tp_after and tp_after.count == 6:
-                        self.grid[tr][tc] = None
+                        # punteggio
                         self.score += 10
+                        # rimuovi il tipo completo
+                        self.grid[tr][tc].remove(tipo, 6)
+                        # se piatto vuoto, segna per rimozione più tardi
+                        if self.grid[tr][tc].is_empty():
+                            self._add_completed_plate((tr, tc), tipo)
 
                     # se la source è diventata vuota, rimuovila SUBITO
                     if self.grid[sr][sc] and self.grid[sr][sc].is_empty():
@@ -284,33 +304,30 @@ class GameState:
 
                     changed = True
 
-        # pulizia finale di sicurezza (se rimane qualcosa vuoto)
+        # pulizia finale di sicurezza (se rimane qualcosa vuoto NON completato)
         for r in range(self.rows):
             for c in range(self.cols):
                 plate = self.grid[r][c]
                 if plate and plate.is_empty():
-                    self.grid[r][c] = None
+                    # se è vuoto ma non è stato segnato come completato, lo togliamo subito
+                    if (r, c) not in [cp["pos"] for cp in self.completed_plates]:
+                        self.grid[r][c] = None
 
     # =========================
     #  CLEANUP
     # =========================
 
     def resolve_groups(self):
+        # ORA non rimuove più piatti completi,
+        # si limita a pulire eventuali piatti completamente vuoti
         for r in range(self.rows):
             for c in range(self.cols):
                 plate = self.grid[r][c]
                 if not plate:
                     continue
-
                 if plate.is_empty():
                     self.grid[r][c] = None
-                    continue
 
-                for p in plate.pieces:
-                    if p.count >= 6:
-                        self.grid[r][c] = None
-                        self.score += 10
-                        break
 
 def generate_random_plate_active(active_types):
     tipi = list(active_types)
@@ -337,5 +354,3 @@ def generate_three_options_active(active_types):
 
     random.shuffle(options)
     return options
-
-
