@@ -245,7 +245,7 @@ class GameState:
                     # OVERFLOW: target completa e si rimuove
                     if total > 6:
                         needed = 6 - tp.count
-                        moved = self.grid[sr][sc].remove(tipo, needed)
+                        moved = self.grid[sr][sc].remove(tipo, sp.count)
                         self._add_anim_event(tipo, moved, (sr, sc), (tr, tc))
                         self.grid[tr][tc].add(tipo, moved)
 
