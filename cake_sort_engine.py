@@ -1,6 +1,8 @@
 import random
 from sound_manager import SFX
 
+MAX_SLICES = 6
+
 
 class Piece:
     def __init__(self, tipo, count=1):
@@ -43,6 +45,22 @@ class Plate:
     def is_empty(self):
         return len(self.pieces) == 0
 
+    def total_slices(self):
+        return sum(p.count for p in self.pieces)
+
+    def free_slots(self, max_slices=MAX_SLICES):
+        return max(0, max_slices - self.total_slices())
+
+    def is_pure(self):
+        return len(self.pieces) == 1
+
+    def is_completed_pure(self, max_slices=MAX_SLICES):
+        return (
+            self.total_slices() == max_slices
+            and len(self.pieces) == 1
+            and self.pieces[0].count == max_slices
+        )
+
     def __repr__(self):
         return " + ".join(str(p) for p in self.pieces)
 
@@ -56,44 +74,9 @@ class GameState:
         self.last_animation_events = []
         self.plates_to_remove = []
 
-    # =========================
-    #  DEBUG / LOGGING
-    # =========================
-
-    def _cell_str(self, r, c, plate=None):
-        """Rappresentazione compatta di una cella."""
-        if plate is None:
-            plate = self.grid[r][c]
-        if plate is None:
-            return "."
-        # es: C4S2 (senza spazi)
-        s = "".join(f"{p.tipo}{p.count}" for p in plate.pieces)
-        return s if s else "EMPTY"
-
-    def grid_to_strings(self, grid_snapshot=None):
-        """Ritorna matrice di stringhe per stampa/diff."""
-        g = grid_snapshot if grid_snapshot is not None else self.grid
-        out = []
-        for r in range(self.rows):
-            row = []
-            for c in range(self.cols):
-                plate = g[r][c]
-                if plate is None:
-                    row.append(".")
-                else:
-                    row.append("".join(f"{p.tipo}{p.count}" for p in plate.pieces) or "EMPTY")
-            out.append(row)
-        return out
-
-    def snapshot_grid_shallow(self):
-        """
-        Snapshot leggero: copia la struttura riga/colonna ma NON fa deepcopy dei Plate.
-        Per debug di ALTO LIVELLO può bastare, ma se vuoi precisione usa snapshot_grid_deep().
-        """
-        return [[self.grid[r][c] for c in range(self.cols)] for r in range(self.rows)]
+    # ---------------- DEBUG ----------------
 
     def snapshot_grid_deep(self):
-        """Snapshot profondo: Plate/Piece copiati per evitare che il merge modifichi anche il 'prima'."""
         snap = [[None for _ in range(self.cols)] for _ in range(self.rows)]
         for r in range(self.rows):
             for c in range(self.cols):
@@ -101,52 +84,55 @@ class GameState:
                 if plate is None:
                     snap[r][c] = None
                 else:
-                    # copia manuale (più sicura di deepcopy)
                     new_pieces = [Piece(p.tipo, p.count) for p in plate.pieces]
                     snap[r][c] = Plate(new_pieces)
         return snap
 
+    def _cell_str(self, r, c, plate=None):
+        if plate is None:
+            plate = self.grid[r][c]
+        if plate is None:
+            return "."
+        return "".join(f"{p.tipo}{p.count}" for p in plate.pieces) or "EMPTY"
+
     def print_grid_compact(self, title="GRID"):
         print(f"\n--- {title} ---")
         for r in range(self.rows):
-            row = []
-            for c in range(self.cols):
-                row.append(self._cell_str(r, c).ljust(10))
-            print(" | ".join(row))
-        print(f"Score: {self.score}")
-        if self.plates_to_remove:
-            print("plates_to_remove:", self.plates_to_remove)
-        else:
-            print("plates_to_remove: []")
+            print(" | ".join(self._cell_str(r, c).ljust(10) for c in range(self.cols)))
+        print("Score:", self.score)
+        print("plates_to_remove:", self.plates_to_remove if self.plates_to_remove else [])
         if self.last_animation_events:
             print("events:")
-            for ev in self.last_animation_events:
-                print("   ", ev)
+            for e in self.last_animation_events:
+                print("   ", e)
         else:
             print("events: []")
 
+    def grid_to_strings(self, grid_snapshot=None):
+        g = grid_snapshot if grid_snapshot is not None else self.grid
+        out = []
+        for r in range(self.rows):
+            row = []
+            for c in range(self.cols):
+                pl = g[r][c]
+                row.append("." if pl is None else ("".join(f"{p.tipo}{p.count}" for p in pl.pieces) or "EMPTY"))
+            out.append(row)
+        return out
+
     def print_diff(self, before_snap, after_snap, title="DIFF"):
-        """
-        before_snap / after_snap: snapshot deep (consigliato).
-        Stampa celle cambiate.
-        """
         b = self.grid_to_strings(before_snap)
         a = self.grid_to_strings(after_snap)
-
-        changes = []
+        print(f"\n--- {title} ---")
+        any_change = False
         for r in range(self.rows):
             for c in range(self.cols):
                 if b[r][c] != a[r][c]:
-                    changes.append((r, c, b[r][c], a[r][c]))
-
-        print(f"\n--- {title} ---")
-        if not changes:
+                    any_change = True
+                    print(f"({r},{c}): {b[r][c]}  ->  {a[r][c]}")
+        if not any_change:
             print("nessuna differenza")
-            return
 
-        for r, c, old, new in changes:
-            print(f"({r},{c}): {old}  ->  {new}")
-
+    # ---------------- CORE HELPERS ----------------
 
     def _is_marked_to_remove(self, pos):
         return pos in self.plates_to_remove
@@ -154,12 +140,7 @@ class GameState:
     def _add_anim_event(self, tipo, count, from_pos, to_pos):
         if from_pos == to_pos or count <= 0:
             return
-        self.last_animation_events.append({
-            "tipo": tipo,
-            "count": count,
-            "from": from_pos,   # (r, c)
-            "to": to_pos        # (r, c)
-        })
+        self.last_animation_events.append({"tipo": tipo, "count": count, "from": from_pos, "to": to_pos})
 
     def neighbors4(self, r, c):
         for dr, dc in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
@@ -167,18 +148,14 @@ class GameState:
             if 0 <= rr < self.rows and 0 <= cc < self.cols:
                 yield rr, cc
 
-    # =========================
-    #  PLACE BLOCK
-    # =========================
+    # ---------------- PLACE BLOCK ----------------
 
     def place_block(self, block, start_r, start_c):
         orientation = block["orientation"]
         plates = block["plates"]
-        positions = []
 
-        # reset per la mossa
         self.last_animation_events = []
-        self.plates_to_remove = []  # IMPORTANTISSIMO: evita stati sporchi
+        self.plates_to_remove = []
 
         if orientation == "H":
             positions = [(start_r, start_c + i) for i in range(len(plates))]
@@ -198,75 +175,103 @@ class GameState:
             self.grid[r][c] = plate
             placed_positions.append((r, c))
 
-        tipi_coinvolti = {
-            p.tipo
-            for plate in plates
-            for p in plate.pieces
-        }
-
+        tipi_coinvolti = {p.tipo for plate in plates for p in plate.pieces}
         for tipo in tipi_coinvolti:
             self.chain_merge_from_type(tipo, placed_positions)
 
         self.resolve_groups()
         return True
 
-    # =========================
-    #  TARGET SELECTION
-    # =========================
+    # ---------------- MERGE DIRECTION RULE ----------------
 
-    def count_matching_neighbors(self, r, c, tipo):
-        count = 0
-        for nr, nc in self.neighbors4(r, c):
-            if self._is_marked_to_remove((nr, nc)):
-                continue
-            plate = self.grid[nr][nc]
-            if plate and plate.get_piece(tipo):
-                count += 1
-        return count
+    def _pick_target_source(self, pos_a, pos_b, tipo, placed_positions):
+        """
+        Decide direzione source->target per NON far mescolare puro/misto come richiesto.
+        Regola:
+        - Se uno dei due è PURO e appena piazzato: quello è TARGET
+        - Altrimenti, se uno dei due è PURO: quello è TARGET
+        - Altrimenti: target = quello con più count di quel tipo
+        """
+        ra, ca = pos_a
+        rb, cb = pos_b
+        a = self.grid[ra][ca]
+        b = self.grid[rb][cb]
+        if not a or not b:
+            return None, None
 
-    def choose_target(self, plate_a, plate_b, tipo, pos_a, pos_b, placed_positions):
-        pa = plate_a.get_piece(tipo)
-        pb = plate_b.get_piece(tipo)
+        pa = a.get_piece(tipo)
+        pb = b.get_piece(tipo)
+        if not pa or not pb:
+            return None, None
 
-        a_is_new = pos_a in placed_positions
-        b_is_new = pos_b in placed_positions
+        a_pure = a.is_pure()
+        b_pure = b.is_pure()
+        a_new = pos_a in placed_positions
+        b_new = pos_b in placed_positions
 
-        a_pure = len(plate_a.pieces) == 1
-        b_pure = len(plate_b.pieces) == 1
+        # 1) puro appena piazzato
+        if a_pure and a_new and not (b_pure and b_new):
+            return pos_a, pos_b  # target=a
+        if b_pure and b_new and not (a_pure and a_new):
+            return pos_b, pos_a  # target=b
 
-        if a_is_new and not b_is_new:
-            if self.count_matching_neighbors(*pos_a, tipo) > 1:
-                return plate_a, plate_b
-        if b_is_new and not a_is_new:
-            if self.count_matching_neighbors(*pos_b, tipo) > 1:
-                return plate_b, plate_a
-
+        # 2) puro pre-esistente
         if a_pure and not b_pure:
-            return plate_a, plate_b
+            return pos_a, pos_b
         if b_pure and not a_pure:
-            return plate_b, plate_a
+            return pos_b, pos_a
 
-        if a_pure and b_pure:
-            if a_is_new and not b_is_new:
-                return plate_a, plate_b
-            if b_is_new and not a_is_new:
-                return plate_b, plate_a
-
+        # 3) fallback: più count
         if pa.count > pb.count:
-            return plate_a, plate_b
+            return pos_a, pos_b
         if pb.count > pa.count:
-            return plate_b, plate_a
+            return pos_b, pos_a
 
-        (ra, ca) = pos_a
-        (rb, cb) = pos_b
+        # tie-break stabile
         if rb > ra or (rb == ra and cb > ca):
-            return plate_b, plate_a
+            return pos_b, pos_a
+        return pos_a, pos_b
 
-        return plate_a, plate_b
+    def _move_tipo(self, source_pos, target_pos, tipo):
+        """
+        Muove quante fette possibili di 'tipo' da source a target rispettando:
+        - cap totale 6 nel target
+        - cap tipo 6 nel target
+        Ritorna moved (0 se niente).
+        """
+        sr, sc = source_pos
+        tr, tc = target_pos
+        source = self.grid[sr][sc]
+        target = self.grid[tr][tc]
+        if not source or not target:
+            return 0
 
-    # =========================
-    #  MERGE LOGIC (anti-freeze definitivo)
-    # =========================
+        sp = source.get_piece(tipo)
+        tp = target.get_piece(tipo)
+        if not sp or not tp:
+            return 0
+
+        free_total = target.free_slots(MAX_SLICES)
+        free_tipo = MAX_SLICES - tp.count
+        can_take = min(sp.count, free_total, free_tipo)
+
+        if can_take <= 0:
+            return 0
+
+        moved = source.remove(tipo, can_take)
+        if moved > 0:
+            self._add_anim_event(tipo, moved, (sr, sc), (tr, tc))
+            target.add(tipo, moved)
+
+            if source.is_empty():
+                self.grid[sr][sc] = None
+
+            if target.is_completed_pure(MAX_SLICES):
+                if (tr, tc) not in self.plates_to_remove:
+                    self.plates_to_remove.append((tr, tc))
+                self.score += 10
+
+        return moved
 
     def chain_merge_from_type(self, tipo, placed_positions):
         changed = True
@@ -274,7 +279,7 @@ class GameState:
         while changed:
             changed = False
 
-            # Celle che hanno quel tipo e NON sono marcate per rimozione
+            # lista celle che contengono quel tipo e non marcate per rimozione
             cells = [
                 (r, c)
                 for r in range(self.rows)
@@ -286,127 +291,46 @@ class GameState:
 
             merge_done = False
 
-            for cr, cc in cells:
+            for r, c in cells:
                 if merge_done:
                     break
-
-                if self._is_marked_to_remove((cr, cc)):
-                    continue
-                current = self.grid[cr][cc]
-                if not current:
+                if self.grid[r][c] is None:
                     continue
 
-                cp = current.get_piece(tipo)
-                if not cp:
-                    continue
-
-                for nr, nc in self.neighbors4(cr, cc):
+                for nr, nc in self.neighbors4(r, c):
                     if merge_done:
                         break
-
                     if self._is_marked_to_remove((nr, nc)):
                         continue
-
-                    neighbor = self.grid[nr][nc]
-                    if not neighbor:
+                    if self.grid[nr][nc] is None:
+                        continue
+                    if self.grid[nr][nc].get_piece(tipo) is None:
                         continue
 
-                    np = neighbor.get_piece(tipo)
-                    if not np:
+                    target_pos, source_pos = self._pick_target_source((r, c), (nr, nc), tipo, placed_positions)
+                    if target_pos is None:
                         continue
 
-                    target, source = self.choose_target(
-                        current, neighbor, tipo,
-                        (cr, cc), (nr, nc), placed_positions
-                    )
-
-                    tr, tc = (cr, cc) if target is current else (nr, nc)
-                    sr, sc = (cr, cc) if source is current else (nr, nc)
-
-                    # se target o source sono marcati, non fare merge
-                    if self._is_marked_to_remove((tr, tc)) or self._is_marked_to_remove((sr, sc)):
-                        continue
-
-                    if (tr, tc) == (sr, sc):
-                        continue
-                    if self.grid[tr][tc] is None or self.grid[sr][sc] is None:
-                        continue
-                    if self.grid[tr][tc] is self.grid[sr][sc]:
-                        continue
-
-                    tp = self.grid[tr][tc].get_piece(tipo)
-                    sp = self.grid[sr][sc].get_piece(tipo)
-                    if not tp or not sp:
-                        continue
-
-                    total = tp.count + sp.count
-
-                    # completamento (con overflow conservato)
-                    if total >= 6:
-                        needed = 6 - tp.count
-                        if needed <= 0:
-                            # target già completo -> segna e stop
-                            self.plates_to_remove.append((tr, tc))
-                            self.score += 10
-                            changed = True
-                            merge_done = True
-                            break
-
-                        moved = self.grid[sr][sc].remove(tipo, needed)
-                        if moved > 0:
-                            self._add_anim_event(tipo, moved, (sr, sc), (tr, tc))
-                            self.grid[tr][tc].add(tipo, moved)
-
-                        tp_after = self.grid[tr][tc].get_piece(tipo)
-                        if tp_after and tp_after.count == 6:
-                            self.plates_to_remove.append((tr, tc))
-                            self.score += 10
-
-                        if self.grid[sr][sc] and self.grid[sr][sc].is_empty():
-                            self.grid[sr][sc] = None
-
+                    # esegui movimento in quella direzione
+                    moved = self._move_tipo(source_pos, target_pos, tipo)
+                    if moved > 0:
                         changed = True
                         merge_done = True
                         break
 
-                    # merge normale
-                    moved = self.grid[sr][sc].remove(tipo, sp.count)
-                    if moved > 0:
-                        self._add_anim_event(tipo, moved, (sr, sc), (tr, tc))
-                        self.grid[tr][tc].add(tipo, moved)
-
-                    tp_after = self.grid[tr][tc].get_piece(tipo)
-                    if tp_after and tp_after.count == 6:
-                        self.plates_to_remove.append((tr, tc))
-                        self.score += 10
-
-                    if self.grid[sr][sc] and self.grid[sr][sc].is_empty():
-                        self.grid[sr][sc] = None
-
-                    changed = True
-                    merge_done = True
-                    break
-
-        # pulizia piatti vuoti
+        # pulizia
         for r in range(self.rows):
             for c in range(self.cols):
                 if self.grid[r][c] and self.grid[r][c].is_empty():
                     self.grid[r][c] = None
 
-    # =========================
-    #  CLEANUP (solo piatti vuoti)
-    # =========================
+    # ---------------- CLEANUP ----------------
 
     def resolve_groups(self):
         for r in range(self.rows):
             for c in range(self.cols):
-                plate = self.grid[r][c]
-                if plate and plate.is_empty():
+                if self.grid[r][c] and self.grid[r][c].is_empty():
                     self.grid[r][c] = None
-
-    # =========================
-    #  RIMOZIONI A FINE ANIMAZIONE
-    # =========================
 
     def finalize_removals(self):
         for r, c in self.plates_to_remove:
