@@ -201,11 +201,32 @@ class Game:
                         block = {"plates": [self.drag_sprite.plate], "orientation": "NONE"}
                         # cattura score prima/dopo per calcolare delta
                         prev_score = self.state.score
+
+                        # DEBUG: snapshot prima (deep)
+                        before = self.state.snapshot_grid_deep()
+                        before_score = self.state.score
+
+                        # DEBUG: descrizione mossa
+                        placed_desc = "".join(f"{p.tipo}{p.count}" for p in self.drag_sprite.plate.pieces)
+                        print("\n===================================================")
+                        print(f"MOSSA: piazzo [{placed_desc}] in cella ({r},{c})")
+                        print("SCORE prima:", before_score)
+
                         ok = self.state.place_block(block, r, c)
+
+                        # DEBUG: snapshot dopo (deep)
+                        after = self.state.snapshot_grid_deep()
+                        after_score = self.state.score
+                        print("OK:", ok, " | SCORE dopo:", after_score, " | delta:", after_score - before_score)
+
+                        # Stampa griglie + diff + eventi
+                        self.state.print_grid_compact("GRID DOPO (stato logico)")
+                        self.state.print_diff(before, after, "DIFF prima -> dopo")
+                        print("===================================================\n")
+
                         new_score = self.state.score
                         if ok:
                             self._spawn_slice_animations_from_events()
-                            # gestisci sblocchi in base al delta di score ottenuto
                             self._handle_score_unlocks(prev_score, new_score)
 
                         if ok:
