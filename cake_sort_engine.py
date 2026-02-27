@@ -245,28 +245,27 @@ class GameState:
                     # OVERFLOW: target completa e si rimuove
                     if total > 6:
                         needed = 6 - tp.count
-                        moved = self.grid[sr][sc].remove(tipo, sp.count)
+
+                        # sposta SOLO quello che serve
+                        moved = self.grid[sr][sc].remove(tipo, needed)
                         self._add_anim_event(tipo, moved, (sr, sc), (tr, tc))
                         self.grid[tr][tc].add(tipo, moved)
 
-                        # punteggio torta completata
+                        # ora il target è esattamente a 6
                         self.score += 10
 
-                        # rimuovi SOLO il tipo completato dal target
+                        # rimuovi le 6 dal target (torta completata)
                         self.grid[tr][tc].remove(tipo, 6)
                         self.score += 10
 
-                        # se il piatto target è vuoto dopo la rimozione, elimina la cella
                         if self.grid[tr][tc].is_empty():
                             self.plates_to_remove.append((tr, tc))
 
-                        # la source non va eliminata se contiene altri tipi
-                        # quindi rimuovi solo se veramente vuota
+                        # elimina source solo se davvero vuota
                         if self.grid[sr][sc] and self.grid[sr][sc].is_empty():
                             self.grid[sr][sc] = None
 
                         changed = True
-                        # passa al prossimo vicino (non usare più current/neighbor appena rimossi)
                         continue
 
                     # CASO NORMALE: sposti tutte le fette della source sul target
