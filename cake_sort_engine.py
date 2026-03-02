@@ -311,6 +311,7 @@ class GameState:
         Sposta fette 'tipo' da source a target rispettando:
         - cap totale 6 nel target
         - cap tipo 6 nel target
+        - NON crea nuovi tipi in un piatto misto già esistente
         """
         sr, sc = source_pos
         tr, tc = target_pos
@@ -321,8 +322,19 @@ class GameState:
 
         sp = source.get_piece(tipo)
         tp = target.get_piece(tipo)
-        if not sp or not tp:
+
+        if not sp:
             return 0
+
+        # se target ha già il tipo, va bene
+        if tp is None:
+            # se target è vuoto, crea il tipo
+            if target.is_empty():
+                tp = Piece(tipo, 0)
+                target.pieces.append(tp)
+            else:
+                # target ha altri tipi diversi, non possiamo aggiungere
+                return 0
 
         free_total = target.free_slots(MAX_SLICES)
         free_tipo = MAX_SLICES - tp.count
