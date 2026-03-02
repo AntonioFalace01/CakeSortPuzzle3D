@@ -30,23 +30,22 @@ class Game:
         self.state = GameState(rows=5, cols=4)
 
         self.unlock = UnlockManager()
-        self.score_bar = ScoreBar(
-            x=250, y=40, width=200, height=100,
-            image_path="Sprites/barra.png",
-            font_path="Font/Milk Cake.otf",
-            font_size=24
-        )
+        self.score_bar = ScoreBar(x=250, y=40, width=200, height=100, image_path="Sprites/barra.png")
 
         next_thr = self.unlock.get_next_threshold()
         if next_thr is None:
             next_thr = 1
         self.score_bar.set_progress(self.unlock.total_score, next_thr)
 
+        # ---- AREA OPZIONI (sinistra) ----
         self.options_area = (40, 120)
         self.options_spacing = 90       # spazio verticale tra opzioni
         self.block_h_spacing = 70       # distanza orizzontale tra i 2 piatti della doppia H
-
         self.cell_size = (58, 58)
+
+        # layout pannello opzioni
+        self.options_count = 3          # generate_three_options_active => 3 opzioni
+        self.options_panel_pad = 14     # padding estetico intorno alle opzioni
 
         self.last_time = pygame.time.get_ticks()
 
@@ -54,8 +53,8 @@ class Game:
         self.sprites = []
 
         self.drag_sprite = None
-        self.drag_group = None          # lista di sprite dell'opzione trascinata
-        self._group_offsets = None      # [(sprite, ox, oy), ...]
+        self.drag_group = None
+        self._group_offsets = None
 
         self.slice_animations = []
 
@@ -75,7 +74,6 @@ class Game:
             orient = opt["orientation"]
 
             if orient == "H" and len(plates) == 2:
-                # due piatti affiancati sulla stessa riga
                 sp0 = PlateSprite(plates[0], x0, y, cell_size=self.cell_size)
                 sp1 = PlateSprite(plates[1], x0 + self.block_h_spacing, y, cell_size=self.cell_size)
                 sp0.opt_index = opt_index
@@ -83,11 +81,9 @@ class Game:
                 sp0.plate_index = 0
                 sp1.plate_index = 1
                 self.sprites.extend([sp0, sp1])
-
                 y += self.options_spacing
 
             elif orient == "V" and len(plates) == 2:
-                # due piatti in colonna (stessa opzione)
                 sp0 = PlateSprite(plates[0], x0, y, cell_size=self.cell_size)
                 sp1 = PlateSprite(plates[1], x0, y + 62, cell_size=self.cell_size)
                 sp0.opt_index = opt_index
@@ -95,16 +91,13 @@ class Game:
                 sp0.plate_index = 0
                 sp1.plate_index = 1
                 self.sprites.extend([sp0, sp1])
-
                 y += self.options_spacing
 
             else:
-                # singolo
                 sp = PlateSprite(plates[0], x0, y, cell_size=self.cell_size)
                 sp.opt_index = opt_index
                 sp.plate_index = 0
                 self.sprites.append(sp)
-
                 y += self.options_spacing
 
     # ------------------- ANIM -------------------
@@ -128,6 +121,39 @@ class Game:
             )
             self.slice_animations.append(anim)
 
+    # ------------------- OPTIONS PANEL (NEW) -------------------
+
+    def _options_panel_rect(self):
+        x0, y0 = self.options_area
+
+        # altezza: 3 opzioni con spacing
+        h = (self.options_count - 1) * self.options_spacing + self.cell_size[1]
+
+        # larghezza più stretta (regola qui quanto vuoi)
+        panel_w = 85 # prova 86/92/98 finché ti piace
+
+        rect = pygame.Rect(x0, y0, panel_w, h)
+        rect = rect.inflate(self.options_panel_pad * 2, self.options_panel_pad * 2)
+        return rect
+
+    def _draw_options_panel(self, window):
+        """Pannello tavolino sotto gli sprite opzione (sinistra)."""
+        rect = self._options_panel_rect()
+
+        # ombra
+        shadow = rect.move(5, 5)
+        pygame.draw.rect(window, (70, 45, 25), shadow, border_radius=16)
+
+        # corpo
+        pygame.draw.rect(window, (155, 115, 75), rect, border_radius=16)
+
+        # bordo
+        pygame.draw.rect(window, (215, 175, 125), rect, width=3, border_radius=16)
+
+        # highlight interno
+        inner = rect.inflate(-10, -10)
+        pygame.draw.rect(window, (175, 135, 95), inner, width=2, border_radius=14)
+
     # ------------------- DRAW -------------------
 
     def draw(self, window):
@@ -144,6 +170,9 @@ class Game:
 
         self.tavolo.draw(window)
         self.button_pause.draw(window)
+
+        # NEW: pannello sotto le opzioni (sinistra)
+        self._draw_options_panel(window)
 
         # opzioni
         for sp in self.sprites:
@@ -208,7 +237,6 @@ class Game:
             if unlocked:
                 self.generate_options()
 
-        # pulizia sprite piazzati le cui celle sono vuote
         for sp in self.sprites:
             if sp.placed and sp.placed_cell:
                 r, c = sp.placed_cell
@@ -218,10 +246,6 @@ class Game:
     # ------------------- PLACE BLOCK HELPERS -------------------
 
     def _block_cells_for_drop(self, opt, drop_r, drop_c, dragged_plate_index):
-        """
-        Calcola start_r,start_c da passare a place_block e le coordinate finali
-        (una per ciascun plate_index).
-        """
         orient = opt["orientation"]
         plates = opt["plates"]
 
@@ -239,7 +263,6 @@ class Game:
             coords = [(start_r, start_c), (start_r + 1, start_c)]
             return start_r, start_c, coords
 
-        # singolo
         coords = [(start_r, start_c)]
         return start_r, start_c, coords
 
@@ -253,7 +276,6 @@ class Game:
         if not event:
             return None
 
-        # MOUSE DOWN: scegli sprite e gruppo
         if event.type == pygame.MOUSEBUTTONDOWN:
             for sp in reversed(self.sprites):
                 sp.start_drag(posizione_mouse)
@@ -261,7 +283,6 @@ class Game:
                     self.drag_sprite = sp
                     self.drag_group = [s for s in self.sprites if s.opt_index == sp.opt_index and not s.placed]
 
-                    # offsets relativi rispetto al principale
                     ax, ay = sp.rect.topleft
                     self._group_offsets = []
                     for s in self.drag_group:
@@ -269,7 +290,6 @@ class Game:
                         self._group_offsets.append((s, sx - ax, sy - ay))
                     break
 
-        # MOUSE MOVE: trascina gruppo
         elif event.type == pygame.MOUSEMOTION:
             if self.drag_sprite and self._group_offsets:
                 self.drag_sprite.update_drag(posizione_mouse)
@@ -279,7 +299,6 @@ class Game:
                         continue
                     s.rect.topleft = (ax + ox, ay + oy)
 
-        # MOUSE UP: prova a piazzare blocco
         elif event.type == pygame.MOUSEBUTTONUP:
             if self.drag_sprite:
                 cell = self.tavolo.get_cell_at(posizione_mouse)
@@ -294,7 +313,6 @@ class Game:
 
                     prev_score = self.state.score
 
-                    # debug snapshot
                     before = self.state.snapshot_grid_deep()
                     before_score = self.state.score
                     placed_desc = " | ".join("".join(f"{p.tipo}{p.count}" for p in pl.pieces) for pl in opt["plates"])
@@ -316,23 +334,19 @@ class Game:
                         self._handle_score_unlocks(prev_score, self.state.score)
                         SFX.place.play()
 
-                        # snap di tutti i pezzi del gruppo alle celle finali
                         for s in self.drag_group:
                             rr, cc = coords[s.plate_index]
                             s.snap_to_cell_topleft(self._cell_topleft(rr, cc))
                             s.placed_cell = (rr, cc)
 
                     else:
-                        # reset gruppo
                         for s in self.drag_group:
                             s.reset_to_start()
 
                 else:
-                    # fuori dal tavolo -> reset
                     for s in (self.drag_group or [self.drag_sprite]):
                         s.reset_to_start()
 
-                # stop dragging
                 for s in (self.drag_group or [self.drag_sprite]):
                     s.stop_drag()
 
@@ -340,7 +354,6 @@ class Game:
                 self.drag_group = None
                 self._group_offsets = None
 
-                # rigenera se tutte le opzioni (sprite) sono piazzate
                 if all(sp.placed for sp in self.sprites):
                     self.generate_options()
 
