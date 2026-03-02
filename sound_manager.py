@@ -4,18 +4,18 @@ from button import Button
 
 class VolumeSlider:
     def __init__(self, x, y, w, h, initial_value=0.5,
-                 knob_path="Sprites/pomello.png", label="Volume"):
+                 knob_path="Sprites/pomello.png", label="Volume",font_path="Font/Milk Cake.otf", font_size=20):
         self.rect = pygame.Rect(x, y, w, h)
         self.value = float(initial_value)
         self.label = label
         self.dragging = False
-        self.font = pygame.font.SysFont("Arial", 22, bold=True)
+        self.font = pygame.font.Font(font_path, font_size)
 
         # Pomello
         self.knob_img = None
         try:
             raw_knob = pygame.image.load(knob_path).convert_alpha()
-            target_h = int(h * 4)
+            target_h = int(h * 3)
             scale_ratio = target_h / raw_knob.get_height()
             target_w = int(raw_knob.get_width() * scale_ratio)
             self.knob_img = pygame.transform.smoothscale(raw_knob, (target_w, target_h))
@@ -61,7 +61,7 @@ class VolumeSlider:
         window.set_clip(prev)
 
         knob_cx = self.track_rect.x + fill_w
-        knob_cy = self.track_rect.centery
+        knob_cy = self.track_rect.centery+4
 
         if self.knob_img:
             knob_rect = self.knob_img.get_rect(center=(knob_cx, knob_cy))
@@ -99,7 +99,7 @@ class SoundManager:
     def __init__(self):
         # Slider Musica
         self.slider_music = VolumeSlider(
-            180, 160, 360, 22,
+            195, 160, 300, 35,
             initial_value=0.4,
             knob_path="Sprites/pomello.png",
             label="Musica"
@@ -107,13 +107,13 @@ class SoundManager:
 
         # Slider Effetti (SFX)
         self.slider_sfx = VolumeSlider(
-            180, 230, 360, 22,
+            195, 245, 300, 35,
             initial_value=0.7,
             knob_path="Sprites/pomello.png",
             label="Effetti"
         )
 
-        self.button_resume = Button(250, 300, 200, 90, "Sprites/Button/button_resume.png")
+        self.button_resume = Button(250, 268, 200, 90, "Sprites/Button/button_resume.png")
 
         self.update_volumes()
 
