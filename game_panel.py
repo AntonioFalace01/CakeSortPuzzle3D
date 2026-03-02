@@ -136,6 +136,15 @@ class Game:
         rect = rect.inflate(self.options_panel_pad * 2, self.options_panel_pad * 2)
         return rect
 
+    def _has_any_move(self):
+        # se almeno una opzione può essere piazzata in almeno una cella -> c'è una mossa
+        for opt in self.current_options:
+            for r in range(self.state.rows):
+                for c in range(self.state.cols):
+                    if self.state.can_place_block(opt, r, c):
+                        return True
+        return False
+
     def _draw_options_panel(self, window):
         """Pannello tavolino sotto gli sprite opzione (sinistra)."""
         rect = self._options_panel_rect()
@@ -356,5 +365,8 @@ class Game:
 
                 if all(sp.placed for sp in self.sprites):
                     self.generate_options()
+                # se dopo aver rigenerato/non rigenerato non ci sono mosse -> game over
+                if not self._has_any_move():
+                    return "game_over"
 
         return None
