@@ -3,18 +3,18 @@ from button import Button
 
 
 class VolumeSlider:
-    def __init__(self, x, y, w, h, initial_value=0.5, knob_path="Sprites/pomello.png", label="Volume"):
+    def __init__(self, x, y, w, h, initial_value=0.5,
+                 knob_path="Sprites/pomello.png", label="Volume"):
         self.rect = pygame.Rect(x, y, w, h)
         self.value = float(initial_value)
         self.label = label
         self.dragging = False
         self.font = pygame.font.SysFont("Arial", 22, bold=True)
 
-        # --- Pomello ---
+        # Pomello
         self.knob_img = None
         try:
             raw_knob = pygame.image.load(knob_path).convert_alpha()
-            # altezza pomello (regola pure: 2.0–4.0 * h)
             target_h = int(h * 4)
             scale_ratio = target_h / raw_knob.get_height()
             target_w = int(raw_knob.get_width() * scale_ratio)
@@ -23,9 +23,9 @@ class VolumeSlider:
             print("Errore caricamento pomello:", e)
             self.knob_img = None
 
-        # --- Track interna (solo disegnata) ---
-        pad_x = int(w * 0.05)
-        pad_y = int(h * 0.20)
+        # Track interna (disegnata)
+        pad_x = int(w * 0.10)
+        pad_y = int(h * 0.30)
         inner_w = w - 2 * pad_x
         inner_h = h - 2 * pad_y
         self.inner_rect = pygame.Rect(x + pad_x, y + pad_y, inner_w, inner_h)
@@ -38,37 +38,30 @@ class VolumeSlider:
             self.inner_rect.height - 2 * track_margin_y
         )
 
-        # stile barra disegnata
         self.fill_color = (255, 160, 220)
         self.fill_back = (255, 210, 240)
         self.radius = max(1, self.track_rect.height // 2)
 
-        # hitbox facilitata
         self.hit_rect = self.rect.inflate(12, 12)
 
     def draw(self, window):
-        # Etichetta
-        text_str = f"{self.label}: {int(self.value * 100)}%"
-        text_surf = self.font.render(text_str, True, (255, 255, 255))
-        window.blit(text_surf, (self.rect.x, self.rect.y - 30))
+        txt = f"{self.label}: {int(self.value * 100)}%"
+        surf = self.font.render(txt, True, (255, 255, 255))
+        window.blit(surf, (self.rect.x, self.rect.y - 30))
 
-        # Contenitore (facoltativo, puoi anche rimuoverlo se vuoi solo track)
         pygame.draw.rect(window, (240, 180, 210), self.rect, border_radius=20)
-
-        # Track chiara
         pygame.draw.rect(window, self.fill_back, self.track_rect, border_radius=self.radius)
 
-        # Riempimento
         fill_w = int(self.track_rect.width * self.value)
         fill_rect = pygame.Rect(self.track_rect.x, self.track_rect.y, fill_w, self.track_rect.height)
+
         prev = window.get_clip()
         window.set_clip(self.track_rect)
         pygame.draw.rect(window, self.fill_color, fill_rect, border_radius=self.radius)
         window.set_clip(prev)
 
-        # Pomello
         knob_cx = self.track_rect.x + fill_w
-        knob_cy = self.track_rect.centery+5
+        knob_cy = self.track_rect.centery
 
         if self.knob_img:
             knob_rect = self.knob_img.get_rect(center=(knob_cx, knob_cy))
@@ -104,38 +97,48 @@ class VolumeSlider:
 
 class SoundManager:
     def __init__(self):
-        self.sounds = {}
-
         # Slider Musica
         self.slider_music = VolumeSlider(
-            200, 180, 300, 30,
+            180, 160, 360, 22,
             initial_value=0.4,
             knob_path="Sprites/pomello.png",
             label="Musica"
         )
 
-        self.button_resume = Button(250, 200, 200, 90, "Sprites/Button/button_resume.png")
+        # Slider Effetti (SFX)
+        self.slider_sfx = VolumeSlider(
+            180, 230, 360, 22,
+            initial_value=0.7,
+            knob_path="Sprites/pomello.png",
+            label="Effetti"
+        )
+
+        self.button_resume = Button(250, 300, 200, 90, "Sprites/Button/button_resume.png")
 
         self.update_volumes()
 
     def update_volumes(self):
+        # musica
         pygame.mixer.music.set_volume(self.slider_music.value)
 
-        # Se in futuro aggiungi slider_sfx, qui imposti anche i suoni.
-        for sound in self.sounds.values():
-            sound.set_volume(1.0)
+        # effetti: applica ai suoni già caricati in SFX
+        if SFX.pickup:
+            SFX.pickup.set_volume(self.slider_sfx.value)
+        if SFX.place:
+            SFX.place.set_volume(self.slider_sfx.value)
 
-    def play_sfx(self, name):
-        if name in self.sounds:
-            self.sounds[name].play()
+        # se in futuro aggiungi altri sfx, mettili qui
 
     def draw(self, window):
         self.slider_music.draw(window)
+        self.slider_sfx.draw(window)
         self.button_resume.draw(window)
 
     def gest_eventi(self, event):
-        change_music = self.slider_music.handle_event(event)
-        if change_music:
+        changed_music = self.slider_music.handle_event(event)
+        changed_sfx = self.slider_sfx.handle_event(event)
+
+        if changed_music or changed_sfx:
             self.update_volumes()
 
         if event.type == pygame.MOUSEBUTTONDOWN:
@@ -153,3 +156,7 @@ class SFX:
     def init(cls):
         cls.pickup = pygame.mixer.Sound("Audio/pickup.wav")
         cls.place = pygame.mixer.Sound("Audio/place.wav")
+
+        # volume default (verrà sovrascritto dallo slider quando apri settings)
+        cls.pickup.set_volume(0.7)
+        cls.place.set_volume(0.7)
