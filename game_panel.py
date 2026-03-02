@@ -30,7 +30,12 @@ class Game:
         self.state = GameState(rows=5, cols=4)
 
         self.unlock = UnlockManager()
-        self.score_bar = ScoreBar(x=250, y=40, width=200, height=100, image_path="Sprites/barra.png")
+        self.score_bar = ScoreBar(
+            x=250, y=40, width=200, height=100,
+            image_path="Sprites/barra.png",
+            font_path="Font/Milk Cake.otf",
+            font_size=24
+        )
 
         next_thr = self.unlock.get_next_threshold()
         if next_thr is None:
