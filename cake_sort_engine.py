@@ -277,6 +277,25 @@ class GameState:
             return pos_b, pos_a
         return pos_a, pos_b
 
+    def can_place_block(self, block, start_r, start_c):
+        """Controlla SOLO se il blocco entra e le celle sono libere (nessun merge)."""
+        orientation = block["orientation"]
+        plates = block["plates"]
+
+        if orientation == "H":
+            positions = [(start_r, start_c + i) for i in range(len(plates))]
+        elif orientation == "V":
+            positions = [(start_r + i, start_c) for i in range(len(plates))]
+        else:
+            positions = [(start_r, start_c)]
+
+        for r, c in positions:
+            if not (0 <= r < self.rows and 0 <= c < self.cols):
+                return False
+            if self.grid[r][c] is not None:
+                return False
+        return True
+
     def _magnet_new_pure_plate(self, pr, pc, placed_positions):
         """
         Se il piatto appena piazzato è PURO, attrae dai vicini tutte le fette dello stesso tipo.

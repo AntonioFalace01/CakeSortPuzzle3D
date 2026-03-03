@@ -14,80 +14,163 @@ class Game:
         x_pos_button = 620
         w_button = 50
         h_button = 50
+
         self.tavolo = Table(
-            210,
-            100,
+            210, 100,
             righe=5,
             colonne=4,
             larg_cella=60,
             alt_cella=60,
             padding=12
         )
+
         self.button_pause = Button(x_pos_button, 20, w_button, h_button,
                                    "Sprites/Button/button_pause.png")
-        # Stato logico del gioco
+
         self.state = GameState(rows=5, cols=4)
 
-        # Sistema sblocchi + barra
         self.unlock = UnlockManager()
         self.score_bar = ScoreBar(x=250, y=40, width=200, height=100, image_path="Sprites/barra.png")
 
-        # imposta barra sulla prossima soglia
         next_thr = self.unlock.get_next_threshold()
         if next_thr is None:
             next_thr = 1
         self.score_bar.set_progress(self.unlock.total_score, next_thr)
 
+        # ---- AREA OPZIONI (sinistra) ----
         self.options_area = (40, 120)
-        self.options_spacing = 80
+        self.options_spacing = 90       # spazio verticale tra opzioni
+        self.block_h_spacing = 70       # distanza orizzontale tra i 2 piatti della doppia H
         self.cell_size = (58, 58)
+
+        # layout pannello opzioni
+        self.options_count = 3          # generate_three_options_active => 3 opzioni
+        self.options_panel_pad = 14     # padding estetico intorno alle opzioni
+
         self.last_time = pygame.time.get_ticks()
+
         self.current_options = []
         self.sprites = []
+
         self.drag_sprite = None
+        self.drag_group = None
+        self._group_offsets = None
+
         self.slice_animations = []
+
         self.generate_options()
 
-    def _spawn_slice_animations_from_events(self):
-        """
-        Legge self.state.last_animation_events e genera
-        una MovingSlice per ciascun evento.
-        """
-        self.slice_animations = []
+    # ------------------- OPTIONS / UI -------------------
 
+    def generate_options(self):
+        self.current_options = generate_three_options_active(self.unlock.active_types)
+        self.sprites = []
+
+        x0, y0 = self.options_area
+        y = y0
+
+        for opt_index, opt in enumerate(self.current_options):
+            plates = opt["plates"]
+            orient = opt["orientation"]
+
+            if orient == "H" and len(plates) == 2:
+                sp0 = PlateSprite(plates[0], x0, y, cell_size=self.cell_size)
+                sp1 = PlateSprite(plates[1], x0 + self.block_h_spacing, y, cell_size=self.cell_size)
+                sp0.opt_index = opt_index
+                sp1.opt_index = opt_index
+                sp0.plate_index = 0
+                sp1.plate_index = 1
+                self.sprites.extend([sp0, sp1])
+                y += self.options_spacing
+
+            elif orient == "V" and len(plates) == 2:
+                sp0 = PlateSprite(plates[0], x0, y, cell_size=self.cell_size)
+                sp1 = PlateSprite(plates[1], x0, y + 62, cell_size=self.cell_size)
+                sp0.opt_index = opt_index
+                sp1.opt_index = opt_index
+                sp0.plate_index = 0
+                sp1.plate_index = 1
+                self.sprites.extend([sp0, sp1])
+                y += self.options_spacing
+
+            else:
+                sp = PlateSprite(plates[0], x0, y, cell_size=self.cell_size)
+                sp.opt_index = opt_index
+                sp.plate_index = 0
+                self.sprites.append(sp)
+                y += self.options_spacing
+
+    # ------------------- ANIM -------------------
+
+    def _spawn_slice_animations_from_events(self):
+        self.slice_animations = []
         for ev in self.state.last_animation_events:
             tipo = ev["tipo"]
             count = ev["count"]
             (r0, c0) = ev["from"]
             (r1, c1) = ev["to"]
 
-            # converte cella (r,c) in coordinate pixel (centro)
             sx, sy = self._cell_center(r0, c0)
             ex, ey = self._cell_center(r1, c1)
 
-            # la durata puoi regolarla a piacere (0.20–0.35 secondi va bene)
-            anim = MovingSlice(tipo, (sx, sy), (ex, ey), duration=0.50, count=count, plate_size=self.tavolo.larg_cella)
+            anim = MovingSlice(
+                tipo, (sx, sy), (ex, ey),
+                duration=0.50,
+                count=count,
+                plate_size=self.tavolo.larg_cella
+            )
             self.slice_animations.append(anim)
 
+    # ------------------- OPTIONS PANEL (NEW) -------------------
 
-    def generate_options(self):
-        self.current_options = generate_three_options_active(self.unlock.active_types)
-        self.sprites = []
+    def _options_panel_rect(self):
         x0, y0 = self.options_area
-        y = y0
+
+        # altezza: 3 opzioni con spacing
+        h = (self.options_count - 1) * self.options_spacing + self.cell_size[1]
+
+        # larghezza più stretta (regola qui quanto vuoi)
+        panel_w = 85 # prova 86/92/98 finché ti piace
+
+        rect = pygame.Rect(x0, y0, panel_w, h)
+        rect = rect.inflate(self.options_panel_pad * 2, self.options_panel_pad * 2)
+        return rect
+
+    def _has_any_move(self):
+        # se almeno una opzione può essere piazzata in almeno una cella -> c'è una mossa
         for opt in self.current_options:
-            for plate in opt["plates"]:
-                sp = PlateSprite(plate, x0, y, cell_size=self.cell_size)
-                self.sprites.append(sp)
-                y += self.options_spacing
+            for r in range(self.state.rows):
+                for c in range(self.state.cols):
+                    if self.state.can_place_block(opt, r, c):
+                        return True
+        return False
+
+    def _draw_options_panel(self, window):
+        """Pannello tavolino sotto gli sprite opzione (sinistra)."""
+        rect = self._options_panel_rect()
+
+        # ombra
+        shadow = rect.move(5, 5)
+        pygame.draw.rect(window, (70, 45, 25), shadow, border_radius=16)
+
+        # corpo
+        pygame.draw.rect(window, (155, 115, 75), rect, border_radius=16)
+
+        # bordo
+        pygame.draw.rect(window, (215, 175, 125), rect, width=3, border_radius=16)
+
+        # highlight interno
+        inner = rect.inflate(-10, -10)
+        pygame.draw.rect(window, (175, 135, 95), inner, width=2, border_radius=14)
+
+    # ------------------- DRAW -------------------
 
     def draw(self, window):
-        # calcolo dt (in secondi)
         now = pygame.time.get_ticks()
         dt = (now - self.last_time) / 1000.0
         self.last_time = now
 
-        # Sincronizza: se uno sprite è piazzato su una cella che ora è vuota, nascondilo
+        # sincronizza visibilità sprite piazzati (se celle svuotate)
         for sp in self.sprites:
             if sp.placed and sp.placed_cell:
                 r, c = sp.placed_cell
@@ -97,11 +180,14 @@ class Game:
         self.tavolo.draw(window)
         self.button_pause.draw(window)
 
-        # Disegna opzioni (solo quelle visibili)
+        # NEW: pannello sotto le opzioni (sinistra)
+        self._draw_options_panel(window)
+
+        # opzioni
         for sp in self.sprites:
             sp.draw(window)
 
-        # Piatti piazzati sulla griglia
+        # griglia piatti
         for r in range(self.state.rows):
             for c in range(self.state.cols):
                 plate = self.state.grid[r][c]
@@ -113,29 +199,27 @@ class Game:
                     plate_size = min(self.tavolo.larg_cella, self.tavolo.alt_cella)
                     Assets.draw_plate(window, plate, center_x, center_y, plate_size=plate_size)
 
-        # aggiorna animazioni di fette
-        # aggiorna animazioni
+        # animazioni fette
         alive_anims = []
         for anim in self.slice_animations:
             anim.update(dt)
             if anim.alive:
                 alive_anims.append(anim)
 
-        # se tutte finite → rimuovi piatti completati
         if self.slice_animations and not alive_anims:
             self.state.finalize_removals()
 
         self.slice_animations = alive_anims
 
-        # disegna animazioni sopra i piatti
         for anim in self.slice_animations:
             anim.draw(window)
 
-        # Barra punteggio
+        # score bar
         self.score_bar.update(dt)
         label = "Prossima torta" if self.unlock.get_next_threshold() is not None else "Tutte sbloccate"
         self.score_bar.draw(window, label=label)
 
+    # ------------------- GRID HELPERS -------------------
 
     def _cell_topleft(self, r, c):
         cx = self.tavolo.x + self.tavolo.padding + c * self.tavolo.larg_cella
@@ -149,29 +233,49 @@ class Game:
         center_y = cy_cell + self.tavolo.alt_cella // 2
         return center_x, center_y
 
+    # ------------------- SCORE / UNLOCK -------------------
 
     def _handle_score_unlocks(self, prev_score, new_score):
         delta = max(0, new_score - prev_score)
         if delta > 0:
-            # aggiorna cumulativo e controlla sblocco
             unlocked = self.unlock.add_score(delta)
-            # aggiorna barra
             next_thr = self.unlock.get_next_threshold()
             if next_thr is None:
                 next_thr = 1
             self.score_bar.set_progress(self.unlock.total_score, next_thr)
-            # se abbiamo sbloccato una nuova torta, rigenera le opzioni con tipi aggiornati
             if unlocked:
                 self.generate_options()
-                #SFX.unlock.play()
 
-        # Pulizia immediata sprite piazzati le cui celle sono ora vuote
-        # (effetto visivo immediato post-merge/completamento)
         for sp in self.sprites:
             if sp.placed and sp.placed_cell:
                 r, c = sp.placed_cell
                 if self.state.grid[r][c] is None:
                     sp.visible = False
+
+    # ------------------- PLACE BLOCK HELPERS -------------------
+
+    def _block_cells_for_drop(self, opt, drop_r, drop_c, dragged_plate_index):
+        orient = opt["orientation"]
+        plates = opt["plates"]
+
+        start_r, start_c = drop_r, drop_c
+
+        if orient == "H" and len(plates) == 2:
+            if dragged_plate_index == 1:
+                start_c = drop_c - 1
+            coords = [(start_r, start_c), (start_r, start_c + 1)]
+            return start_r, start_c, coords
+
+        if orient == "V" and len(plates) == 2:
+            if dragged_plate_index == 1:
+                start_r = drop_r - 1
+            coords = [(start_r, start_c), (start_r + 1, start_c)]
+            return start_r, start_c, coords
+
+        coords = [(start_r, start_c)]
+        return start_r, start_c, coords
+
+    # ------------------- EVENTS -------------------
 
     def gest_eventi(self, posizione_mouse, event=None):
         if event and event.type == pygame.MOUSEBUTTONDOWN:
@@ -186,67 +290,83 @@ class Game:
                 sp.start_drag(posizione_mouse)
                 if sp.dragging:
                     self.drag_sprite = sp
+                    self.drag_group = [s for s in self.sprites if s.opt_index == sp.opt_index and not s.placed]
+
+                    ax, ay = sp.rect.topleft
+                    self._group_offsets = []
+                    for s in self.drag_group:
+                        sx, sy = s.rect.topleft
+                        self._group_offsets.append((s, sx - ax, sy - ay))
                     break
 
         elif event.type == pygame.MOUSEMOTION:
-            if self.drag_sprite:
+            if self.drag_sprite and self._group_offsets:
                 self.drag_sprite.update_drag(posizione_mouse)
+                ax, ay = self.drag_sprite.rect.topleft
+                for s, ox, oy in self._group_offsets:
+                    if s is self.drag_sprite:
+                        continue
+                    s.rect.topleft = (ax + ox, ay + oy)
 
         elif event.type == pygame.MOUSEBUTTONUP:
             if self.drag_sprite:
                 cell = self.tavolo.get_cell_at(posizione_mouse)
+
                 if cell:
-                    r, c = cell
-                    if self.state.grid[r][c] is None:
-                        block = {"plates": [self.drag_sprite.plate], "orientation": "NONE"}
-                        # cattura score prima/dopo per calcolare delta
-                        prev_score = self.state.score
+                    drop_r, drop_c = cell
+                    opt = self.current_options[self.drag_sprite.opt_index]
 
-                        # DEBUG: snapshot prima (deep)
-                        before = self.state.snapshot_grid_deep()
-                        before_score = self.state.score
+                    start_r, start_c, coords = self._block_cells_for_drop(
+                        opt, drop_r, drop_c, self.drag_sprite.plate_index
+                    )
 
-                        # DEBUG: descrizione mossa
-                        placed_desc = "".join(f"{p.tipo}{p.count}" for p in self.drag_sprite.plate.pieces)
-                        print("\n===================================================")
-                        print(f"MOSSA: piazzo [{placed_desc}] in cella ({r},{c})")
-                        print("SCORE prima:", before_score)
+                    prev_score = self.state.score
 
-                        ok = self.state.place_block(block, r, c)
+                    before = self.state.snapshot_grid_deep()
+                    before_score = self.state.score
+                    placed_desc = " | ".join("".join(f"{p.tipo}{p.count}" for p in pl.pieces) for pl in opt["plates"])
+                    print("\n===================================================")
+                    print(f"MOSSA: piazzo BLOCCO [{placed_desc}] orient={opt['orientation']} start=({start_r},{start_c})")
+                    print("SCORE prima:", before_score)
 
-                        # DEBUG: snapshot dopo (deep)
-                        after = self.state.snapshot_grid_deep()
-                        after_score = self.state.score
-                        print("OK:", ok, " | SCORE dopo:", after_score, " | delta:", after_score - before_score)
+                    ok = self.state.place_block(opt, start_r, start_c)
 
-                        # Stampa griglie + diff + eventi
-                        self.state.print_grid_compact("GRID DOPO (stato logico)")
-                        self.state.print_diff(before, after, "DIFF prima -> dopo")
-                        print("===================================================\n")
+                    after = self.state.snapshot_grid_deep()
+                    after_score = self.state.score
+                    print("OK:", ok, " | SCORE dopo:", after_score, " | delta:", after_score - before_score)
+                    self.state.print_grid_compact("GRID DOPO (stato logico)")
+                    self.state.print_diff(before, after, "DIFF prima -> dopo")
+                    print("===================================================\n")
 
-                        new_score = self.state.score
-                        if ok:
-                            self._spawn_slice_animations_from_events()
-                            self._handle_score_unlocks(prev_score, new_score)
+                    if ok:
+                        self._spawn_slice_animations_from_events()
+                        self._handle_score_unlocks(prev_score, self.state.score)
+                        SFX.place.play()
 
-                        if ok:
-                            SFX.place.play()
-                            self.drag_sprite.snap_to_cell_topleft(self._cell_topleft(r, c))
-                            self.drag_sprite.placed_cell = (r, c)  # lega sprite alla cella
-                        else:
-                            self.drag_sprite.reset_to_start()
+                        for s in self.drag_group:
+                            rr, cc = coords[s.plate_index]
+                            s.snap_to_cell_topleft(self._cell_topleft(rr, cc))
+                            s.placed_cell = (rr, cc)
+
                     else:
-                        self.drag_sprite.reset_to_start()
+                        for s in self.drag_group:
+                            s.reset_to_start()
+
                 else:
-                    self.drag_sprite.reset_to_start()
+                    for s in (self.drag_group or [self.drag_sprite]):
+                        s.reset_to_start()
 
-                self.drag_sprite.stop_drag()
+                for s in (self.drag_group or [self.drag_sprite]):
+                    s.stop_drag()
+
                 self.drag_sprite = None
+                self.drag_group = None
+                self._group_offsets = None
 
-                # Se tutti sono piazzati, rigenera
                 if all(sp.placed for sp in self.sprites):
                     self.generate_options()
+                # se dopo aver rigenerato/non rigenerato non ci sono mosse -> game over
+                if not self._has_any_move():
+                    return "game_over"
 
         return None
-
-

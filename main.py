@@ -22,6 +22,8 @@ fps = 60
 window = pygame.display.set_mode((700, 500))
 assets.Assets.init()
 try:
+    img_game_over = pygame.image.load("Sprites/Background/game_over.png")
+    sfondo_game_over = pygame.transform.scale(img_game_over, (700, 500))
     img_menu_start = pygame.image.load("Sprites/Background/menu_start.png")
     sfondo_menu_start = pygame.transform.scale(img_menu_start, (700, 500))
     img_game_panel = pygame.image.load("Sprites/Background/game_panel.png")
@@ -71,6 +73,8 @@ def main(window):
                     nuovo_stato = game_panel.gest_eventi(mouse_pos, event)
                     if nuovo_stato == "pause_game":
                         stato = "pause_game"
+                    elif nuovo_stato == "game_over":
+                        stato = "game_over"
 
             # MENU PAUSA: SOLO CLICK
             elif stato == "pause_game":
@@ -118,6 +122,10 @@ def main(window):
         elif stato == "settings":
             window.blit(sfondo_menu_pause,(0,0))
             sound.draw(window)
+
+        elif stato == "game_over":
+            window.blit(sfondo_game_over, (0, 0))
+
         pygame.display.update()
 
     pygame.quit()
