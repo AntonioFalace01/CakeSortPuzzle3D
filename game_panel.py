@@ -40,7 +40,7 @@ class Game:
         # ---- AREA OPZIONI (sinistra) ----
         self.options_area = (40, 120)
         self.options_spacing = 90       # spazio verticale tra opzioni
-        self.block_h_spacing = 70       # distanza orizzontale tra i 2 piatti della doppia H
+        self.block_h_spacing = 60       # distanza orizzontale tra i 2 piatti della doppia H
         self.cell_size = (58, 58)
 
         # layout pannello opzioni
@@ -185,7 +185,7 @@ class Game:
 
         # opzioni
         for sp in self.sprites:
-            sp.draw(window)
+            sp.draw(window,dt)
 
         # griglia piatti
         for r in range(self.state.rows):

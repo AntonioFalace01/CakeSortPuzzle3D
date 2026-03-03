@@ -23,6 +23,11 @@ class PlateSprite:
         # --- NEW: info blocco/opzione ---
         self.opt_index = None     # indice opzione in current_options
         self.plate_index = 0      # 0 o 1 dentro al blocco
+        # --- SPAWN ANIMATION ---
+        self.spawning = True
+        self.spawn_time = 0.0
+        self.spawn_duration = 0.35
+        self.spawn_offset_y = 35
 
     def _render(self):
         self.surface.fill((0, 0, 0, 0))
@@ -57,8 +62,49 @@ class PlateSprite:
         self.placed_cell = None
         self.visible = True
 
-    def draw(self, surface):
+    def draw(self, surface, dt):
         if not self.visible:
             return
+
         self._render()
-        surface.blit(self.surface, self.rect)
+
+        rect = self.rect.copy()
+        scale = 1.0
+        alpha = 255
+
+        if self.spawning:
+            self.spawn_time += dt
+            progress = min(1.0, self.spawn_time / self.spawn_duration)
+
+            # easing
+            ease = 1 - (1 - progress) ** 3
+
+            # SLIDE
+            y_offset = self.spawn_offset_y * (1 - ease)
+            rect.y += y_offset
+
+            # SCALE POP
+            if progress < 0.8:
+                scale = 0.8 + 0.25 * ease
+            else:
+                scale = 1.05 - (progress - 0.8) * 0.25
+
+            # FADE
+            alpha = int(255 * ease)
+
+            if progress >= 1.0:
+                self.spawning = False
+
+        # Applica scala
+        if scale != 1.0:
+            w, h = self.surface.get_size()
+            scaled = pygame.transform.smoothscale(
+                self.surface,
+                (int(w * scale), int(h * scale))
+            )
+            scaled.set_alpha(alpha)
+            new_rect = scaled.get_rect(center=rect.center)
+            surface.blit(scaled, new_rect)
+        else:
+            self.surface.set_alpha(alpha)
+            surface.blit(self.surface, rect)
