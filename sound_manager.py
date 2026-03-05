@@ -11,7 +11,6 @@ class VolumeSlider:
         self.dragging = False
         self.font = pygame.font.Font(font_path, font_size)
 
-        # Pomello
         self.knob_img = None
         try:
             raw_knob = pygame.image.load(knob_path).convert_alpha()
@@ -23,7 +22,6 @@ class VolumeSlider:
             print("Errore caricamento pomello:", e)
             self.knob_img = None
 
-        # Track interna (disegnata)
         pad_x = int(w * 0.10)
         pad_y = int(h * 0.30)
         inner_w = w - 2 * pad_x
@@ -97,7 +95,7 @@ class VolumeSlider:
 
 class SoundManager:
     def __init__(self):
-        # Slider Musica
+
         self.slider_music = VolumeSlider(
             195, 160, 300, 35,
             initial_value=0.4,
@@ -105,7 +103,6 @@ class SoundManager:
             label="Musica"
         )
 
-        # Slider Effetti (SFX)
         self.slider_sfx = VolumeSlider(
             195, 245, 300, 35,
             initial_value=0.7,
@@ -118,16 +115,13 @@ class SoundManager:
         self.update_volumes()
 
     def update_volumes(self):
-        # musica
         pygame.mixer.music.set_volume(self.slider_music.value)
 
-        # effetti: applica ai suoni già caricati in SFX
         if SFX.pickup:
             SFX.pickup.set_volume(self.slider_sfx.value)
         if SFX.place:
             SFX.place.set_volume(self.slider_sfx.value)
 
-        # se in futuro aggiungi altri sfx, mettili qui
 
     def draw(self, window):
         self.slider_music.draw(window)
@@ -156,7 +150,5 @@ class SFX:
     def init(cls):
         cls.pickup = pygame.mixer.Sound("Audio/pickup.wav")
         cls.place = pygame.mixer.Sound("Audio/place.wav")
-
-        # volume default (verrà sovrascritto dallo slider quando apri settings)
         cls.pickup.set_volume(0.7)
         cls.place.set_volume(0.7)

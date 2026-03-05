@@ -20,7 +20,6 @@ class ParticellaMagica:
         # Dimensione variabile
         self.raggio_base = random.randint(1, 3)
         self.timer = random.uniform(0, 100)  # Per l'effetto pulsazione
-        # Colori: Azzurro chiaro, Bianco, Viola chiaro
         colori_possibili = [
             (100, 200, 255),  # Azzurro
             (200, 200, 255),  # Bianco/Viola

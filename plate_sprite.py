@@ -20,10 +20,8 @@ class PlateSprite:
         self.placed_cell = None
         self.visible = True
 
-        # --- NEW: info blocco/opzione ---
         self.opt_index = None     # indice opzione in current_options
         self.plate_index = 0      # 0 o 1 dentro al blocco
-        # --- SPAWN ANIMATION ---
         self.spawning = True
         self.spawn_time = 0.0
         self.spawn_duration = 0.35
@@ -76,26 +74,21 @@ class PlateSprite:
             self.spawn_time += dt
             progress = min(1.0, self.spawn_time / self.spawn_duration)
 
-            # easing
             ease = 1 - (1 - progress) ** 3
 
-            # SLIDE
             y_offset = self.spawn_offset_y * (1 - ease)
             rect.y += y_offset
 
-            # SCALE POP
             if progress < 0.8:
                 scale = 0.8 + 0.25 * ease
             else:
                 scale = 1.05 - (progress - 0.8) * 0.25
 
-            # FADE
             alpha = int(255 * ease)
 
             if progress >= 1.0:
                 self.spawning = False
 
-        # Applica scala
         if scale != 1.0:
             w, h = self.surface.get_size()
             scaled = pygame.transform.smoothscale(

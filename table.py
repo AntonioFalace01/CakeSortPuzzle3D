@@ -30,16 +30,12 @@ class Table:
         self.w = self.colonne * self.larg_cella + 2 * self.padding
         self.h = self.righe * self.alt_cella + 2 * self.padding
 
-        # =========================================== #
-        # ===== COLORI LEGNO DI QUERCIA ============= #
-        # =========================================== #
         if stile_legno == "quercia":
-            self._base = (210, 180, 140)      # Tan chiaro, base quercia
-            self._dark = (196, 156, 90)       # Marrone dorato, gradienti
-            self._grain = (160, 120, 60)      # Venature calde
-            self._edge = (139, 105, 60)       # Bordo più scuro
+            self._base = (210, 180, 140)
+            self._dark = (196, 156, 90)
+            self._grain = (160, 120, 60)
+            self._edge = (139, 105, 60)
         else:
-            # fallback legno caldo
             self._base = (210, 180, 140)
             self._dark = (184, 134, 11)
             self._grain = (160, 120, 80)
@@ -47,7 +43,6 @@ class Table:
 
         self._grid_color = self._edge
 
-        # Surface OPACA
         self.surface = pygame.Surface((self.w, self.h))
         self._ridisegna()
 
@@ -74,11 +69,7 @@ class Table:
         if self.mostra_griglia:
             self._griglia(s)
         self._bordo(s)
-        #self._highlight_superiore(s)
 
-    # ---------------------------------------- #
-    # ===== Funzioni di disegno interne ====== #
-    # ---------------------------------------- #
 
     def _lerp(self, a, b, t):
         return int(a + (b - a) * t)
@@ -134,15 +125,7 @@ class Table:
     def _bordo(self, s):
         pygame.draw.rect(s, self._edge, s.get_rect(), width=8, border_radius=16)
 
-    '''def _highlight_superiore(self, s):
-        for i in range(12):
-            col = (
-                min(255, self._base[0] + 20),
-                min(255, self._base[1] + 20),
-                min(255, self._base[2] + 20),
-            )
-            pygame.draw.line(s, col, (6, 6 + i), (self.w - 6, 6 + i))
-'''
+
     def _disegna_ombra(self, screen, offset=6):
         shadow_rect = pygame.Rect(self.x + offset, self.y + offset, self.w, self.h)
         pygame.draw.rect(screen, (60, 40, 25), shadow_rect, border_radius=18)

@@ -14,7 +14,6 @@ class MenuStart:
         self.button_quit = Button(x_pos_button, 324, w_button, h_button, "Sprites/Button/button_quit.png")
 
     def draw(self, window):
-        #self.table.draw(window)
         self.button_start.draw(window)
         self.button_quit.draw(window)
         self.button_settings.draw(window)
@@ -39,7 +38,6 @@ class MenuPause(MenuStart):
         self.button_quit = Button(x_pos_button, 244, w_button, h_button, "Sprites/Button/button_quit.png")
 
     def draw(self, window):
-        # self.table.draw(window)
         self.button_resume.draw(window)
         self.button_quit.draw(window)
         self.button_settings.draw(window)

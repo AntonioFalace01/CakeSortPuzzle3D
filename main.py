@@ -18,7 +18,7 @@ pygame.mixer.music.set_volume(0.1)
 pygame.mixer.music.play(-1)
 pygame.display.set_caption("Cake Sort Puzzle")
 fps = 60
-#pygame.display.set_icon(pygame.image.load("Sprites/icon.png")) #da metter l'icona che vogliamo
+#pygame.display.set_icon(pygame.image.load("Sprites/icon.png"))
 window = pygame.display.set_mode((700, 500))
 assets.Assets.init()
 try:
@@ -52,7 +52,6 @@ def main(window):
                 run = False
                 break
 
-            # MENU START: SOLO CLICK
             if stato == "menu_start":
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     mouse_pos = event.pos
@@ -66,7 +65,6 @@ def main(window):
                         stato= "settings"
                         settings_origin= "menu_start"
 
-            # GAME: CLICK + RILASCIO + MOVIMENTO (per drag&drop)
             elif stato == "game":
                 if event.type in (pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP, pygame.MOUSEMOTION):
                     mouse_pos = event.pos if event.type != pygame.MOUSEMOTION else pygame.mouse.get_pos()
@@ -76,7 +74,6 @@ def main(window):
                     elif nuovo_stato == "game_over":
                         stato = "game_over"
 
-            # MENU PAUSA: SOLO CLICK
             elif stato == "pause_game":
                 pygame.mixer.music.pause()
                 if event.type == pygame.MOUSEBUTTONDOWN:
@@ -93,7 +90,6 @@ def main(window):
                         settings_origin = "pause_game"
 
             elif stato == "settings":
-                # Passa l'evento al sound manager (gestisce slider e click)
                 nuovo_stato = sound.gest_eventi(event)
 
                 if nuovo_stato == "resume_settings":
@@ -103,7 +99,6 @@ def main(window):
                         pygame.mixer.music.unpause()
                         stato = "game"
                     else:
-                        # fallback se per qualche motivo non è impostato
                         stato = "menu_start"
 
         if stato == "menu_start":
@@ -133,42 +128,6 @@ def main(window):
 
 
 
-#condizione molto importante, serve per accertarsi di richiamare esattamente la funzione main, del file con nome main.
 if __name__ == "__main__":
     main(window)
-'''
-
-
-if __name__ == "__main__":
-    game = GameState(5, 4)
-
-    options = generate_three_options()
-
-    while True:
-        game.print_grid()
-
-        # se finite, rigenera
-        if not options:
-            options = generate_three_options()
-
-        print("Opzioni disponibili:")
-        for i, opt in enumerate(options):
-            if len(opt["plates"]) == 1:
-                print(f"{i}) Singolo: {opt['plates'][0]}")
-            else:
-                print(f"{i}) Blocco {opt['orientation']}:")
-                for p in opt["plates"]:
-                    print("   ", p)
-
-        choice = int(input(f"Scegli opzione (0-{len(options)-1}): "))
-        r = int(input("Riga: "))
-        c = int(input("Colonna: "))
-
-        selected = options[choice]
-
-        if game.place_block(selected, r, c):
-            options.pop(choice)
-        else:
-            print("Mossa non valida!\n")
-'''
 

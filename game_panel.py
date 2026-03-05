@@ -37,15 +37,14 @@ class Game:
             next_thr = 1
         self.score_bar.set_progress(self.unlock.total_score, next_thr)
 
-        # ---- AREA OPZIONI (sinistra) ----
         self.options_area = (40, 120)
-        self.options_spacing = 90       # spazio verticale tra opzioni
-        self.block_h_spacing = 60       # distanza orizzontale tra i 2 piatti della doppia H
+        self.options_spacing = 90
+        self.block_h_spacing = 60
         self.cell_size = (58, 58)
 
         # layout pannello opzioni
-        self.options_count = 3          # generate_three_options_active => 3 opzioni
-        self.options_panel_pad = 14     # padding estetico intorno alle opzioni
+        self.options_count = 3
+        self.options_panel_pad = 14
 
         self.last_time = pygame.time.get_ticks()
 
@@ -60,7 +59,6 @@ class Game:
 
         self.generate_options()
 
-    # ------------------- OPTIONS / UI -------------------
 
     def generate_options(self):
         self.current_options = generate_three_options_active(self.unlock.active_types)
@@ -100,7 +98,6 @@ class Game:
                 self.sprites.append(sp)
                 y += self.options_spacing
 
-    # ------------------- ANIM -------------------
 
     def _spawn_slice_animations_from_events(self):
         self.slice_animations = []
@@ -121,23 +118,20 @@ class Game:
             )
             self.slice_animations.append(anim)
 
-    # ------------------- OPTIONS PANEL (NEW) -------------------
 
     def _options_panel_rect(self):
         x0, y0 = self.options_area
 
-        # altezza: 3 opzioni con spacing
         h = (self.options_count - 1) * self.options_spacing + self.cell_size[1]
 
-        # larghezza più stretta (regola qui quanto vuoi)
-        panel_w = 85 # prova 86/92/98 finché ti piace
+
+        panel_w = 85
 
         rect = pygame.Rect(x0, y0, panel_w, h)
         rect = rect.inflate(self.options_panel_pad * 2, self.options_panel_pad * 2)
         return rect
 
     def _has_any_move(self):
-        # se almeno una opzione può essere piazzata in almeno una cella -> c'è una mossa
         for opt in self.current_options:
             for r in range(self.state.rows):
                 for c in range(self.state.cols):
@@ -146,31 +140,24 @@ class Game:
         return False
 
     def _draw_options_panel(self, window):
-        """Pannello tavolino sotto gli sprite opzione (sinistra)."""
+        #Pannello tavolino sotto gli sprite opzione (sinistra).
         rect = self._options_panel_rect()
 
-        # ombra
         shadow = rect.move(5, 5)
         pygame.draw.rect(window, (70, 45, 25), shadow, border_radius=16)
 
-        # corpo
         pygame.draw.rect(window, (155, 115, 75), rect, border_radius=16)
 
-        # bordo
         pygame.draw.rect(window, (215, 175, 125), rect, width=3, border_radius=16)
 
-        # highlight interno
         inner = rect.inflate(-10, -10)
         pygame.draw.rect(window, (175, 135, 95), inner, width=2, border_radius=14)
-
-    # ------------------- DRAW -------------------
 
     def draw(self, window):
         now = pygame.time.get_ticks()
         dt = (now - self.last_time) / 1000.0
         self.last_time = now
 
-        # sincronizza visibilità sprite piazzati (se celle svuotate)
         for sp in self.sprites:
             if sp.placed and sp.placed_cell:
                 r, c = sp.placed_cell
@@ -179,15 +166,11 @@ class Game:
 
         self.tavolo.draw(window)
         self.button_pause.draw(window)
-
-        # NEW: pannello sotto le opzioni (sinistra)
         self._draw_options_panel(window)
 
-        # opzioni
         for sp in self.sprites:
             sp.draw(window,dt)
 
-        # griglia piatti
         for r in range(self.state.rows):
             for c in range(self.state.cols):
                 plate = self.state.grid[r][c]
@@ -199,7 +182,6 @@ class Game:
                     plate_size = min(self.tavolo.larg_cella, self.tavolo.alt_cella)
                     Assets.draw_plate(window, plate, center_x, center_y, plate_size=plate_size)
 
-        # animazioni fette
         alive_anims = []
         for anim in self.slice_animations:
             anim.update(dt)
@@ -219,8 +201,6 @@ class Game:
         label = "Prossima torta" if self.unlock.get_next_threshold() is not None else "Tutte sbloccate"
         self.score_bar.draw(window, label=label)
 
-    # ------------------- GRID HELPERS -------------------
-
     def _cell_topleft(self, r, c):
         cx = self.tavolo.x + self.tavolo.padding + c * self.tavolo.larg_cella
         cy = self.tavolo.y + self.tavolo.padding + r * self.tavolo.alt_cella
@@ -232,8 +212,6 @@ class Game:
         center_x = cx_cell + self.tavolo.larg_cella // 2
         center_y = cy_cell + self.tavolo.alt_cella // 2
         return center_x, center_y
-
-    # ------------------- SCORE / UNLOCK -------------------
 
     def _handle_score_unlocks(self, prev_score, new_score):
         delta = max(0, new_score - prev_score)
@@ -251,8 +229,6 @@ class Game:
                 r, c = sp.placed_cell
                 if self.state.grid[r][c] is None:
                     sp.visible = False
-
-    # ------------------- PLACE BLOCK HELPERS -------------------
 
     def _block_cells_for_drop(self, opt, drop_r, drop_c, dragged_plate_index):
         orient = opt["orientation"]
@@ -274,8 +250,6 @@ class Game:
 
         coords = [(start_r, start_c)]
         return start_r, start_c, coords
-
-    # ------------------- EVENTS -------------------
 
     def gest_eventi(self, posizione_mouse, event=None):
         if event and event.type == pygame.MOUSEBUTTONDOWN:
@@ -365,7 +339,6 @@ class Game:
 
                 if all(sp.placed for sp in self.sprites):
                     self.generate_options()
-                # se dopo aver rigenerato/non rigenerato non ci sono mosse -> game over
                 if not self._has_any_move():
                     return "game_over"
 
