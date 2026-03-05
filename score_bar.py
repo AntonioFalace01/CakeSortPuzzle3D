@@ -2,7 +2,7 @@ import pygame
 
 class ScoreBar:
     def __init__(self, x, y, width, height, image_path="Sprites/barra.png",
-                 font_path="Fonts/Milk Cake.otf", font_size=24):
+                 font_path="Font/Milk Cake.otf", font_size=24):
         self.rect = pygame.Rect(x, y, width, height)
 
         try:
