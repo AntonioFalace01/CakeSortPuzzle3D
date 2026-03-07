@@ -18,7 +18,7 @@ pygame.mixer.music.set_volume(0.1)
 pygame.mixer.music.play(-1)
 pygame.display.set_caption("Cake Sort Puzzle")
 fps = 60
-#pygame.display.set_icon(pygame.image.load("Sprites/icon.png"))
+pygame.display.set_icon(pygame.image.load("Sprites/icon.png"))
 window = pygame.display.set_mode((900, 700))
 assets.Assets.init()
 try:
