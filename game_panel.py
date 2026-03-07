@@ -70,6 +70,10 @@ class Game:
         self.ai_anim_duration = 0.75
         self.ai_game_over = False
 
+        # Nuovi attributi
+        self.slice_queue = []  # coda di animazioni da fare
+        self.active_slice = None  # animazione attiva corrente
+
     def _mark_option_used(self, opt_index):
         """Marca un'opzione come usata e nasconde i suoi sprite."""
         self.used_options.add(opt_index)
@@ -259,8 +263,11 @@ class Game:
                 self.sprites.append(sp)
                 y += self.options_spacing
 
+        if SFX.spawn:
+            SFX.spawn.play()
+
     def _spawn_slice_animations_from_events(self):
-        self.slice_animations = []
+        self.slice_queue = []
         for ev in self.state.last_animation_events:
             tipo = ev["tipo"]
             count = ev["count"]
@@ -274,7 +281,10 @@ class Game:
                 count=count,
                 plate_size=self.tavolo.larg_cella
             )
-            self.slice_animations.append(anim)
+            self.slice_queue.append(anim)
+        # Partiamo dalla prima
+        if self.slice_queue:
+            self.active_slice = self.slice_queue.pop(0)
 
     def _options_panel_rect(self):
         x0, y0 = self.options_area
@@ -342,19 +352,18 @@ class Game:
                     plate_size = min(self.tavolo.larg_cella, self.tavolo.alt_cella)
                     Assets.draw_plate(window, plate, center_x, center_y, plate_size=plate_size)
 
-        alive_anims = []
-        for anim in self.slice_animations:
-            anim.update(dt)
-            if anim.alive:
-                alive_anims.append(anim)
-
-        if self.slice_animations and not alive_anims:
-            self.state.finalize_removals()
-
-        self.slice_animations = alive_anims
-
-        for anim in self.slice_animations:
-            anim.draw(window)
+        # Gestione animazioni merge UNA ALLA VOLTA
+        if self.active_slice:
+            self.active_slice.update(dt)
+            self.active_slice.draw(window)
+            if not self.active_slice.alive:
+                if self.slice_queue:
+                    # Prendi la prossima animazione dalla coda
+                    self.active_slice = self.slice_queue.pop(0)
+                else:
+                    # Nessuna animazione rimasta -> finalize
+                    self.active_slice = None
+                    self.state.finalize_removals()
 
         self.score_bar.update(dt)
         label = "Prossima torta" if self.unlock.get_next_threshold() is not None else "Tutte sbloccate"
