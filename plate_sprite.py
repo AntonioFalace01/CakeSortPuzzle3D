@@ -26,6 +26,39 @@ class PlateSprite:
         self.spawn_time = 0.0
         self.spawn_duration = 0.35
         self.spawn_offset_y = 35
+        # AI auto-move
+        self.ai_moving = False
+        self.ai_time = 0.0
+        self.ai_duration = 0.35
+        self.ai_start = (x, y)
+        self.ai_target = (x, y)
+
+    def start_ai_move_to(self, target_topleft, duration=0.35):
+        self.ai_moving = True
+        self.ai_time = 0.0
+        self.ai_duration = max(0.01, duration)
+        self.ai_start = (self.rect.x, self.rect.y)
+        self.ai_target = (int(target_topleft[0]), int(target_topleft[1]))
+
+    def update_ai_move(self, dt):
+        if not self.ai_moving:
+            return False
+
+        self.ai_time += dt
+        t = min(1.0, self.ai_time / self.ai_duration)
+        # easing smooth
+        ease = 1 - (1 - t) ** 3
+
+        sx, sy = self.ai_start
+        tx, ty = self.ai_target
+        self.rect.x = int(sx + (tx - sx) * ease)
+        self.rect.y = int(sy + (ty - sy) * ease)
+
+        if t >= 1.0:
+            self.ai_moving = False
+            return True
+        return False
+
 
     def _render(self):
         self.surface.fill((0, 0, 0, 0))

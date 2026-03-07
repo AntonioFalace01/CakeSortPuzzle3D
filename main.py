@@ -66,8 +66,8 @@ def main(window):
                         settings_origin= "menu_start"
 
             elif stato == "game":
-                if event.type in (pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP, pygame.MOUSEMOTION):
-                    mouse_pos = event.pos if event.type != pygame.MOUSEMOTION else pygame.mouse.get_pos()
+                if event.type in (pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP, pygame.MOUSEMOTION, pygame.KEYDOWN):
+                    mouse_pos = event.pos if hasattr(event, "pos") else pygame.mouse.get_pos()
                     nuovo_stato = game_panel.gest_eventi(mouse_pos, event)
                     if nuovo_stato == "pause_game":
                         stato = "pause_game"
