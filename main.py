@@ -19,17 +19,17 @@ pygame.mixer.music.play(-1)
 pygame.display.set_caption("Cake Sort Puzzle")
 fps = 60
 #pygame.display.set_icon(pygame.image.load("Sprites/icon.png"))
-window = pygame.display.set_mode((700, 500))
+window = pygame.display.set_mode((900, 700))
 assets.Assets.init()
 try:
     img_game_over = pygame.image.load("Sprites/Background/game_over.png")
-    sfondo_game_over = pygame.transform.scale(img_game_over, (700, 500))
+    sfondo_game_over = pygame.transform.scale(img_game_over, (900, 700))
     img_menu_start = pygame.image.load("Sprites/Background/menu_start.png")
-    sfondo_menu_start = pygame.transform.scale(img_menu_start, (700, 500))
+    sfondo_menu_start = pygame.transform.scale(img_menu_start, (900, 700))
     img_game_panel = pygame.image.load("Sprites/Background/game_panel.png")
-    sfondo_game_panel = pygame.transform.scale(img_game_panel, (700, 500))
+    sfondo_game_panel = pygame.transform.scale(img_game_panel, (900, 700))
     img_menu_pause = pygame.image.load("Sprites/Background/menu_pausa.png")
-    sfondo_menu_pause = pygame.transform.scale(img_menu_pause, (700, 500))
+    sfondo_menu_pause = pygame.transform.scale(img_menu_pause, (900, 700))
 except FileNotFoundError:
     #se manca uno dei file immagine stampa errore e usa sfondo vuoto
     print("ERRORE: Manca sprites/menu.png")

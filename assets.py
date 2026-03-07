@@ -106,7 +106,7 @@ class Assets:
 
 
     @classmethod
-    def draw_plate(cls, surface, plate, center_x, center_y, plate_size=60):
+    def draw_plate(cls, surface, plate, center_x, center_y, plate_size=75):
 
         plate_img = cls._get_plate_image(plate_size)
         plate_rect = plate_img.get_rect(center=(center_x, center_y))

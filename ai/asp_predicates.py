@@ -29,6 +29,24 @@ class Occ(Predicate):
     def set_C(self, v): self.C = v
 
 
+class OccType(Predicate):
+    """occ_type(R, C, T) — la cella (R,C) contiene fette di tipo T."""
+    predicate_name = "occ_type"
+
+    def __init__(self):
+        self.R = 0
+        self.C = 0
+        self.T = ""
+        super().__init__([("R", int), ("C", int), ("T", str)])
+
+    def get_R(self): return self.R
+    def set_R(self, v): self.R = v
+    def get_C(self): return self.C
+    def set_C(self, v): self.C = v
+    def get_T(self): return self.T
+    def set_T(self, v): self.T = v
+
+
 class Opt(Predicate):
     predicate_name = "opt"
 
@@ -45,7 +63,7 @@ class OptOrient(Predicate):
 
     def __init__(self):
         self.O = 0
-        self.OR = ""  # "h" / "v" / "n"
+        self.OR = ""
         super().__init__([("O", int), ("OR", str)])
 
     def get_O(self): return self.O

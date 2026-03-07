@@ -3,7 +3,7 @@ import math
 from assets import Assets
 
 class MovingSlice:
-    def __init__(self, tipo, start_px, end_px, duration=0.50, count=1, plate_size=60):
+    def __init__(self, tipo, start_px, end_px, duration=0.75, count=1, plate_size=60):
 
         self.tipo = tipo
         self.start_x, self.start_y = start_px

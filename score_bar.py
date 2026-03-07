@@ -16,7 +16,7 @@ class ScoreBar:
 
         inner_w = width - 2 * pad_x
         inner_h = height - 2 * pad_y
-        self.inner_rect = pygame.Rect(self.rect.x + pad_x + 2, self.rect.y + pad_y - 6, inner_w, inner_h)
+        self.inner_rect = pygame.Rect(self.rect.x + pad_x + 3, self.rect.y + pad_y - 10, inner_w, inner_h)
 
         fill_margin_x = int(inner_w * 0.01)
         fill_margin_y = int(inner_h * 0.18)
@@ -70,4 +70,4 @@ class ScoreBar:
 
         txt = f"{label}: {min(self.current, self.target)}/{self.target}"
         surf = self.font.render(txt, True, self.text_color)
-        window.blit(surf, (self.rect.centerx - surf.get_width() // 2, self.inner_rect.y - 24))
+        window.blit(surf, (self.rect.centerx - surf.get_width() // 2, self.inner_rect.y - 40))
