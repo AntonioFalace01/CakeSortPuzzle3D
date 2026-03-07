@@ -399,6 +399,32 @@ class GameState:
             if pl and pl.get_piece(tipo) is not None:
                 neigh.append((nr, nc))
 
+        # ---------------- TYPE SPLIT (misto vs misto) ----------------
+        if len(neigh) == 1:
+            nr, nc = neigh[0]
+            neighbor = self.grid[nr][nc]
+
+            if neighbor and not neighbor.is_pure() and not bridge.is_pure():
+                # entrambi misti -> separiamo i tipi
+                bridge_piece = bridge.get_piece(tipo)
+                neigh_piece = neighbor.get_piece(tipo)
+
+                if bridge_piece and neigh_piece:
+
+                    total = bridge_piece.count + neigh_piece.count
+
+                    # decidiamo il target in base alla quantità
+                    if bridge_piece.count >= neigh_piece.count:
+                        target = (br, bc)
+                        source = (nr, nc)
+                    else:
+                        target = (nr, nc)
+                        source = (br, bc)
+
+                    # sposta tutto quel tipo
+                    self._move_tipo(source, target, tipo)
+                    return
+
         if not neigh:
             return
 

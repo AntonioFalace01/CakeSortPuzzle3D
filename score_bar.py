@@ -2,23 +2,21 @@ import pygame
 
 class ScoreBar:
     def __init__(self, x, y, width, height, image_path="Sprites/barra.png",
-                 font_path="Fonts/Milk Cake.otf", font_size=24):
+                 font_path="Font/Milk Cake.otf", font_size=24):
         self.rect = pygame.Rect(x, y, width, height)
 
-        # Carica sfondo
         try:
             raw = pygame.image.load(image_path).convert_alpha()
             self.bg = pygame.transform.smoothscale(raw, (width, height))
         except:
             self.bg = None
 
-        # Padding
         pad_x = int(width * 0.16)
         pad_y = int(height * 0.40)
 
         inner_w = width - 2 * pad_x
         inner_h = height - 2 * pad_y
-        self.inner_rect = pygame.Rect(self.rect.x + pad_x + 2, self.rect.y + pad_y - 6, inner_w, inner_h)
+        self.inner_rect = pygame.Rect(self.rect.x + pad_x + 3, self.rect.y + pad_y - 10, inner_w, inner_h)
 
         fill_margin_x = int(inner_w * 0.01)
         fill_margin_y = int(inner_h * 0.18)
@@ -33,7 +31,6 @@ class ScoreBar:
         self.fill_back = (255, 210, 240)
         self.border_radius = self.fill_area.height // 2
 
-        # --- FONT CUSTOM ---
         try:
             self.font = pygame.font.Font(font_path, font_size)
         except Exception as e:
@@ -42,7 +39,6 @@ class ScoreBar:
 
         self.text_color = (255, 255, 255)
 
-        # valori
         self.current = 0
         self.target = 100
         self.smooth = 0.0
@@ -74,4 +70,4 @@ class ScoreBar:
 
         txt = f"{label}: {min(self.current, self.target)}/{self.target}"
         surf = self.font.render(txt, True, self.text_color)
-        window.blit(surf, (self.rect.centerx - surf.get_width() // 2, self.inner_rect.y - 24))
+        window.blit(surf, (self.rect.centerx - surf.get_width() // 2, self.inner_rect.y - 40))

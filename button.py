@@ -15,8 +15,6 @@ class Button:
         self.rect_hover_disegno = None
 
         self.use_full_hitbox = use_full_hitbox
-       # self.border_color = (255, 0, 0)
-       # self.border_width = 2
         if image_path:
             try:
                 # Carica l'immagine e scala a larghezza e altezza desiderate
@@ -37,7 +35,6 @@ class Button:
                 self.image_normal = None
 
     def _is_hovered(self, mouse_pos):
-        # Se vogliamo usare l'intera immagine come hitbox:
         if self.use_full_hitbox:
             return self.rect_disegno.collidepoint(mouse_pos)
         return self.rect.collidepoint(mouse_pos)
@@ -54,7 +51,6 @@ class Button:
                 #disegna immagine normale
                 window.blit(self.image_normal, self.rect_disegno)
         click_rect = self.rect_disegno if self.use_full_hitbox else self.rect
-        #pygame.draw.rect(window, self.border_color, click_rect, self.border_width, border_radius=10)
 
 
     def is_clicked(self, posizione_mouse):

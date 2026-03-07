@@ -8,7 +8,6 @@ class UnlockManager:
         self.active_types = set(self.all_types_ordered[:3])
         self.unlocked_count = len(self.active_types)
         # soglie di sblocco per ognuna delle 7 nuove torte
-        # es: [100, 250, 450, 700, 1000, 1350, 1750]
         self.unlock_thresholds = [100, 250, 450, 700, 1000, 1350, 1750]
 
         self.total_score = 0  # cumulativo globale per sblocchi
@@ -17,10 +16,10 @@ class UnlockManager:
     def get_next_threshold(self):
         if self.next_unlock_index < len(self.unlock_thresholds):
             return self.unlock_thresholds[self.next_unlock_index]
-        return None  # nessun altro sblocco
+        return None
 
     def add_score(self, amount):
-        """Aggiorna punteggio cumulativo e ritorna True se si sblocca una nuova torta."""
+        #Aggiorna punteggio cumulativo e ritorna True se si sblocca una nuova torta
         if amount <= 0:
             return False
         self.total_score += amount
@@ -60,14 +59,12 @@ class Assets:
                      "A": "almond_crunch", "B": "blueberry_glaze", "D": "dark_forest", "E": "emerald_mint",
                      "F": "frost_vanilla", "G": "golden_honey", }
 
-    # ------------------ CACHE ------------------
 
     _plate_src = None
     _slice_src = {}
     _plate_cache = {}
     _slice_cache = {}
 
-    # ------------------ INIT ------------------
 
     @classmethod
     def init(cls):
@@ -78,7 +75,6 @@ class Assets:
             for key, path in cls.PATH_SLICES.items():
                 cls._slice_src[key] = pygame.image.load(path).convert_alpha()
 
-    # ------------------ PLATE IMAGE ------------------
 
     @classmethod
     def _get_plate_image(cls, plate_size):
@@ -93,8 +89,6 @@ class Assets:
 
         return img
 
-    # ------------------ SLICE IMAGE ------------------
-
     @classmethod
     def _get_slice_image(cls, slice_key, plate_size):
         if not cls._slice_src:
@@ -104,17 +98,15 @@ class Assets:
         img = cls._slice_cache.get(key)
 
         if img is None:
-            # fetta = 60% del piatto
             target = int(plate_size * 0.64)
             img = pygame.transform.smoothscale(cls._slice_src[slice_key], (target, target))
             cls._slice_cache[key] = img
 
         return img
 
-    # ------------------ DRAW PLATE CON FETTE ------------------
 
     @classmethod
-    def draw_plate(cls, surface, plate, center_x, center_y, plate_size=60):
+    def draw_plate(cls, surface, plate, center_x, center_y, plate_size=75):
 
         plate_img = cls._get_plate_image(plate_size)
         plate_rect = plate_img.get_rect(center=(center_x, center_y))
@@ -126,7 +118,7 @@ class Assets:
         MAX_SLICES = 6
         angle_step = 360 / MAX_SLICES
         current_angle = 0
-        drawn = 0  # ← NUOVO CONTATORE
+        drawn = 0
 
         for piece in plate.pieces:
 
@@ -138,7 +130,7 @@ class Assets:
 
             for _ in range(piece.count):
 
-                if drawn >= MAX_SLICES:  # ← STOP se già 6 fette
+                if drawn >= MAX_SLICES:
                     break
 
                 rotated = pygame.transform.rotate(img, -current_angle + 180)
@@ -155,9 +147,9 @@ class Assets:
                 surface.blit(rotated, rect)
 
                 current_angle += angle_step
-                drawn += 1  # ← INCREMENTA
+                drawn += 1
 
-            if drawn >= MAX_SLICES:  # ← STOP anche dal loop esterno
+            if drawn >= MAX_SLICES:
                 break
 
     @classmethod

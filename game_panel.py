@@ -7,20 +7,22 @@ from slice_animation import MovingSlice
 from table import Table
 from assets import Assets, UnlockManager
 from sound_manager import SFX
+import os
+from ai.asp_solver import CakeSortASPSolver
 
 
 class Game:
     def __init__(self):
-        x_pos_button = 620
-        w_button = 50
-        h_button = 50
+        x_pos_button = 830
+        w_button = 70
+        h_button = 70
 
         self.tavolo = Table(
-            210, 100,
+            280, 170,
             righe=5,
             colonne=4,
-            larg_cella=60,
-            alt_cella=60,
+            larg_cella=75,
+            alt_cella=75,
             padding=12
         )
 
@@ -30,27 +32,27 @@ class Game:
         self.state = GameState(rows=5, cols=4)
 
         self.unlock = UnlockManager()
-        self.score_bar = ScoreBar(x=250, y=40, width=200, height=100, image_path="Sprites/barra.png")
+        self.score_bar = ScoreBar(x=315, y=65, width=260, height=170, image_path="Sprites/barra.png")
 
         next_thr = self.unlock.get_next_threshold()
         if next_thr is None:
             next_thr = 1
         self.score_bar.set_progress(self.unlock.total_score, next_thr)
 
-        # ---- AREA OPZIONI (sinistra) ----
         self.options_area = (40, 120)
-        self.options_spacing = 90       # spazio verticale tra opzioni
-        self.block_h_spacing = 60       # distanza orizzontale tra i 2 piatti della doppia H
-        self.cell_size = (58, 58)
+        self.options_spacing = 90
+        self.block_h_spacing = 60
+        self.cell_size = (75, 75)
 
-        # layout pannello opzioni
-        self.options_count = 3          # generate_three_options_active => 3 opzioni
-        self.options_panel_pad = 14     # padding estetico intorno alle opzioni
+        self.options_count = 3
+        self.options_panel_pad = 14
 
         self.last_time = pygame.time.get_ticks()
 
         self.current_options = []
         self.sprites = []
+        # tiene traccia di quali opzioni sono state usate (indice -> True)
+        self.used_options = set()
 
         self.drag_sprite = None
         self.drag_group = None
@@ -59,11 +61,168 @@ class Game:
         self.slice_animations = []
 
         self.generate_options()
+        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+        self.ai_solver = CakeSortASPSolver(BASE_DIR)
 
-    # ------------------- OPTIONS / UI -------------------
+        self.ai_pending = None
+        self.ai_animating = False
+        self.ai_anim_sprites = []
+        self.ai_anim_duration = 0.75
+        self.ai_game_over = False
+
+    def _mark_option_used(self, opt_index):
+        """Marca un'opzione come usata e nasconde i suoi sprite."""
+        self.used_options.add(opt_index)
+        for sp in self.sprites:
+            if sp.opt_index == opt_index:
+                sp.placed = True
+
+    def _all_options_used(self):
+        """Controlla se tutte le opzioni correnti sono state usate."""
+        for oi in range(len(self.current_options)):
+            if oi not in self.used_options:
+                return False
+        return True
+
+    def _get_available_options(self):
+        """Ritorna lista di (indice, opzione) non ancora usate."""
+        available = []
+        for oi, opt in enumerate(self.current_options):
+            if oi not in self.used_options:
+                available.append((oi, opt))
+        return available
+
+    def _start_ai_drag(self, opt_index, start_r, start_c):
+        group = [s for s in self.sprites if s.opt_index == opt_index and s.visible and not s.placed]
+
+        if not group:
+            group = [s for s in self.sprites if s.opt_index == opt_index]
+
+        if not group:
+            self._rebuild_sprites_from_current_options()
+            group = [s for s in self.sprites if s.opt_index == opt_index and not s.placed]
+
+        if not group:
+            print("IA: sprites non trovati per opzione", opt_index)
+            return False
+
+        opt = self.current_options[opt_index]
+        _, _, coords = self._block_cells_for_drop(opt, start_r, start_c, dragged_plate_index=0)
+
+        for s in group:
+            rr, cc = coords[s.plate_index]
+            target = self._cell_topleft(rr, cc)
+            s.start_ai_move_to(target, duration=self.ai_anim_duration)
+
+        self.ai_pending = (opt_index, start_r, start_c, coords)
+        self.ai_animating = True
+        self.ai_anim_sprites = group
+        return True
+
+    def _finish_ai_drop(self):
+        if not self.ai_pending:
+            return
+
+        opt_index, start_r, start_c, coords = self.ai_pending
+        opt = self.current_options[opt_index]
+
+        prev_score = self.state.score
+
+        before_score = self.state.score
+        placed_desc = " | ".join(
+            "".join(f"{p.tipo}{p.count}" for p in pl.pieces) for pl in opt["plates"]
+        )
+        print("\n================ AI MOVE ================")
+        print(f"IA: piazzo BLOCCO [{placed_desc}] orient={opt['orientation']} start=({start_r},{start_c})")
+        print("SCORE prima:", before_score)
+
+        ok = self.state.place_block(opt, start_r, start_c)
+
+        after_score = self.state.score
+        print("OK:", ok, "| SCORE dopo:", after_score, "| delta:", after_score - before_score)
+        print("=========================================\n")
+
+        if ok:
+            self._spawn_slice_animations_from_events()
+            self._handle_score_unlocks(prev_score, self.state.score)
+            SFX.place.play()
+
+            for s in self.ai_anim_sprites:
+                rr, cc = coords[s.plate_index]
+                s.snap_to_cell_topleft(self._cell_topleft(rr, cc))
+                s.placed_cell = (rr, cc)
+                s.placed = True
+
+            # Marca opzione come usata (NON rigenera)
+            self._mark_option_used(opt_index)
+
+            # Rigenera SOLO se tutte e 3 sono state usate
+            if self._all_options_used():
+                self.generate_options()
+
+        else:
+            for s in self.ai_anim_sprites:
+                s.reset_to_start()
+
+        self.ai_pending = None
+        self.ai_animating = False
+        self.ai_anim_sprites = []
+        # Controlla game over dopo piazzamento IA
+        if not self._has_any_move():
+            self.ai_game_over = True
+
+    def _rebuild_sprites_from_current_options(self):
+        self.sprites = []
+        x0, y0 = self.options_area
+        y = y0
+
+        for opt_index, opt in enumerate(self.current_options):
+            plates = opt["plates"]
+            orient = opt["orientation"]
+
+            if orient == "H" and len(plates) == 2:
+                sp0 = PlateSprite(plates[0], x0, y, cell_size=self.cell_size)
+                sp1 = PlateSprite(plates[1], x0 + self.block_h_spacing, y, cell_size=self.cell_size)
+                sp0.opt_index = opt_index
+                sp1.opt_index = opt_index
+                sp0.plate_index = 0
+                sp1.plate_index = 1
+                if opt_index in self.used_options:
+                    sp0.placed = True
+                    sp0.visible = False
+                    sp1.placed = True
+                    sp1.visible = False
+                self.sprites.extend([sp0, sp1])
+                y += self.options_spacing
+
+            elif orient == "V" and len(plates) == 2:
+                sp0 = PlateSprite(plates[0], x0, y, cell_size=self.cell_size)
+                sp1 = PlateSprite(plates[1], x0, y + 62, cell_size=self.cell_size)
+                sp0.opt_index = opt_index
+                sp1.opt_index = opt_index
+                sp0.plate_index = 0
+                sp1.plate_index = 1
+                if opt_index in self.used_options:
+                    sp0.placed = True
+                    sp0.visible = False
+                    sp1.placed = True
+                    sp1.visible = False
+                self.sprites.extend([sp0, sp1])
+                y += self.options_spacing
+
+            else:
+                sp = PlateSprite(plates[0], x0, y, cell_size=self.cell_size)
+                sp.opt_index = opt_index
+                sp.plate_index = 0
+                if opt_index in self.used_options:
+                    sp.placed = True
+                    sp.visible = False
+                self.sprites.append(sp)
+                y += self.options_spacing
 
     def generate_options(self):
         self.current_options = generate_three_options_active(self.unlock.active_types)
+        self.used_options = set()
         self.sprites = []
 
         x0, y0 = self.options_area
@@ -100,8 +259,6 @@ class Game:
                 self.sprites.append(sp)
                 y += self.options_spacing
 
-    # ------------------- ANIM -------------------
-
     def _spawn_slice_animations_from_events(self):
         self.slice_animations = []
         for ev in self.state.last_animation_events:
@@ -109,36 +266,28 @@ class Game:
             count = ev["count"]
             (r0, c0) = ev["from"]
             (r1, c1) = ev["to"]
-
             sx, sy = self._cell_center(r0, c0)
             ex, ey = self._cell_center(r1, c1)
-
             anim = MovingSlice(
                 tipo, (sx, sy), (ex, ey),
-                duration=0.50,
+                duration=0.75,
                 count=count,
                 plate_size=self.tavolo.larg_cella
             )
             self.slice_animations.append(anim)
 
-    # ------------------- OPTIONS PANEL (NEW) -------------------
-
     def _options_panel_rect(self):
         x0, y0 = self.options_area
-
-        # altezza: 3 opzioni con spacing
         h = (self.options_count - 1) * self.options_spacing + self.cell_size[1]
-
-        # larghezza più stretta (regola qui quanto vuoi)
-        panel_w = 85 # prova 86/92/98 finché ti piace
-
+        panel_w = 85
         rect = pygame.Rect(x0, y0, panel_w, h)
         rect = rect.inflate(self.options_panel_pad * 2, self.options_panel_pad * 2)
         return rect
 
     def _has_any_move(self):
-        # se almeno una opzione può essere piazzata in almeno una cella -> c'è una mossa
-        for opt in self.current_options:
+        for oi, opt in enumerate(self.current_options):
+            if oi in self.used_options:
+                continue
             for r in range(self.state.rows):
                 for c in range(self.state.cols):
                     if self.state.can_place_block(opt, r, c):
@@ -146,31 +295,29 @@ class Game:
         return False
 
     def _draw_options_panel(self, window):
-        """Pannello tavolino sotto gli sprite opzione (sinistra)."""
         rect = self._options_panel_rect()
-
-        # ombra
         shadow = rect.move(5, 5)
         pygame.draw.rect(window, (70, 45, 25), shadow, border_radius=16)
-
-        # corpo
         pygame.draw.rect(window, (155, 115, 75), rect, border_radius=16)
-
-        # bordo
         pygame.draw.rect(window, (215, 175, 125), rect, width=3, border_radius=16)
-
-        # highlight interno
         inner = rect.inflate(-10, -10)
         pygame.draw.rect(window, (175, 135, 95), inner, width=2, border_radius=14)
-
-    # ------------------- DRAW -------------------
 
     def draw(self, window):
         now = pygame.time.get_ticks()
         dt = (now - self.last_time) / 1000.0
+
+        if self.ai_animating and self.ai_anim_sprites:
+            finished_all = True
+            for s in self.ai_anim_sprites:
+                done = s.update_ai_move(dt)
+                if not done:
+                    finished_all = False
+            if finished_all:
+                self._finish_ai_drop()
+
         self.last_time = now
 
-        # sincronizza visibilità sprite piazzati (se celle svuotate)
         for sp in self.sprites:
             if sp.placed and sp.placed_cell:
                 r, c = sp.placed_cell
@@ -179,15 +326,11 @@ class Game:
 
         self.tavolo.draw(window)
         self.button_pause.draw(window)
-
-        # NEW: pannello sotto le opzioni (sinistra)
         self._draw_options_panel(window)
 
-        # opzioni
         for sp in self.sprites:
-            sp.draw(window,dt)
+            sp.draw(window, dt)
 
-        # griglia piatti
         for r in range(self.state.rows):
             for c in range(self.state.cols):
                 plate = self.state.grid[r][c]
@@ -199,7 +342,6 @@ class Game:
                     plate_size = min(self.tavolo.larg_cella, self.tavolo.alt_cella)
                     Assets.draw_plate(window, plate, center_x, center_y, plate_size=plate_size)
 
-        # animazioni fette
         alive_anims = []
         for anim in self.slice_animations:
             anim.update(dt)
@@ -214,12 +356,9 @@ class Game:
         for anim in self.slice_animations:
             anim.draw(window)
 
-        # score bar
         self.score_bar.update(dt)
         label = "Prossima torta" if self.unlock.get_next_threshold() is not None else "Tutte sbloccate"
         self.score_bar.draw(window, label=label)
-
-    # ------------------- GRID HELPERS -------------------
 
     def _cell_topleft(self, r, c):
         cx = self.tavolo.x + self.tavolo.padding + c * self.tavolo.larg_cella
@@ -232,8 +371,6 @@ class Game:
         center_x = cx_cell + self.tavolo.larg_cella // 2
         center_y = cy_cell + self.tavolo.alt_cella // 2
         return center_x, center_y
-
-    # ------------------- SCORE / UNLOCK -------------------
 
     def _handle_score_unlocks(self, prev_score, new_score):
         delta = max(0, new_score - prev_score)
@@ -252,12 +389,9 @@ class Game:
                 if self.state.grid[r][c] is None:
                     sp.visible = False
 
-    # ------------------- PLACE BLOCK HELPERS -------------------
-
     def _block_cells_for_drop(self, opt, drop_r, drop_c, dragged_plate_index):
         orient = opt["orientation"]
         plates = opt["plates"]
-
         start_r, start_c = drop_r, drop_c
 
         if orient == "H" and len(plates) == 2:
@@ -275,23 +409,66 @@ class Game:
         coords = [(start_r, start_c)]
         return start_r, start_c, coords
 
-    # ------------------- EVENTS -------------------
-
     def gest_eventi(self, posizione_mouse, event=None):
+        # Game over pendente dall'IA
+        if self.ai_game_over:
+            self.ai_game_over = False
+            return "game_over"
+
         if event and event.type == pygame.MOUSEBUTTONDOWN:
             if self.button_pause.is_clicked(posizione_mouse):
                 return "pause_game"
+
+        if event and event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_i:
+                if self.ai_animating:
+                    return None
+
+                # Passa solo le opzioni non ancora usate al solver
+                available = self._get_available_options()
+                if not available:
+                    print("IA: tutte le opzioni gia usate")
+                    return None
+
+                # Costruisci lista opzioni disponibili per il solver
+                available_opts = [opt for (oi, opt) in available]
+                available_indices = [oi for (oi, opt) in available]
+
+                move = self.ai_solver.choose_move(
+                    self.state, available_opts, debug=False
+                )
+                if move is None:
+                    print("IA: nessuna mossa trovata")
+                    return None
+
+                # Il solver ritorna indice relativo alla lista available_opts
+                # Converto in indice assoluto di current_options
+                solver_oi, r, c = move
+                if solver_oi >= len(available_indices):
+                    print("IA: indice solver fuori range")
+                    return None
+
+                real_oi = available_indices[solver_oi]
+
+                started = self._start_ai_drag(real_oi, r, c)
+                if not started:
+                    print("IA: impossibile avviare animazione per mossa", move)
+                return None
 
         if not event:
             return None
 
         if event.type == pygame.MOUSEBUTTONDOWN:
             for sp in reversed(self.sprites):
+                if sp.placed or not sp.visible:
+                    continue
                 sp.start_drag(posizione_mouse)
                 if sp.dragging:
                     self.drag_sprite = sp
-                    self.drag_group = [s for s in self.sprites if s.opt_index == sp.opt_index and not s.placed]
-
+                    self.drag_group = [
+                        s for s in self.sprites
+                        if s.opt_index == sp.opt_index and not s.placed
+                    ]
                     ax, ay = sp.rect.topleft
                     self._group_offsets = []
                     for s in self.drag_group:
@@ -324,7 +501,9 @@ class Game:
 
                     before = self.state.snapshot_grid_deep()
                     before_score = self.state.score
-                    placed_desc = " | ".join("".join(f"{p.tipo}{p.count}" for p in pl.pieces) for pl in opt["plates"])
+                    placed_desc = " | ".join(
+                        "".join(f"{p.tipo}{p.count}" for p in pl.pieces) for pl in opt["plates"]
+                    )
                     print("\n===================================================")
                     print(f"MOSSA: piazzo BLOCCO [{placed_desc}] orient={opt['orientation']} start=({start_r},{start_c})")
                     print("SCORE prima:", before_score)
@@ -348,6 +527,13 @@ class Game:
                             s.snap_to_cell_topleft(self._cell_topleft(rr, cc))
                             s.placed_cell = (rr, cc)
 
+                        # Marca opzione come usata
+                        self._mark_option_used(self.drag_sprite.opt_index)
+
+                        # Rigenera solo se tutte usate
+                        if self._all_options_used():
+                            self.generate_options()
+
                     else:
                         for s in self.drag_group:
                             s.reset_to_start()
@@ -363,9 +549,6 @@ class Game:
                 self.drag_group = None
                 self._group_offsets = None
 
-                if all(sp.placed for sp in self.sprites):
-                    self.generate_options()
-                # se dopo aver rigenerato/non rigenerato non ci sono mosse -> game over
                 if not self._has_any_move():
                     return "game_over"
 
