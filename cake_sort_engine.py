@@ -204,11 +204,22 @@ class GameState:
 
         tipi_coinvolti = {p.tipo for plate in plates for p in plate.pieces}
 
-        # 0) CALAMITA (solo se nuovo piatto è PURO)
+        # 0a) SPLIT ATOMICO: risolvi coppie misto/misto adiacenti PRIMA di tutto
+        for (pr, pc) in placed_positions:
+            for nr, nc in self.neighbors4(pr, pc):
+                if self._is_marked_to_remove((nr, nc)):
+                    continue
+                nplate = self.grid[nr][nc]
+                if nplate and not nplate.is_pure():
+                    plate = self.grid[pr][pc]
+                    if plate and not plate.is_pure():
+                        self._split_mixed_pair((pr, pc), (nr, nc), placed_positions)  # <-- aggiunto placed_positions
+
+        # 0b) CALAMITA (solo se nuovo piatto è PURO)
         for (pr, pc) in placed_positions:
             self._magnet_new_pure_plate(pr, pc, placed_positions)
 
-        # 1) BRIDGE merge (piatto appena piazzato fa da ponte per convogliare)
+        # 1) BRIDGE merge
         for (pr, pc) in placed_positions:
             for tipo in tipi_coinvolti:
                 self._merge_bridge_for_type(pr, pc, tipo, placed_positions)
@@ -377,20 +388,81 @@ class GameState:
 
         return moved
 
+    def _count_neighbors_with_tipo(self, r, c, tipo, exclude_pos=None):
+        """Conta i vicini che hanno 'tipo', escludendo opzionalmente una posizione."""
+        count = 0
+        for nr, nc in self.neighbors4(r, c):
+            if exclude_pos and (nr, nc) == exclude_pos:
+                continue
+            if self._is_marked_to_remove((nr, nc)):
+                continue
+            pl = self.grid[nr][nc]
+            if pl and pl.get_piece(tipo) is not None:
+                count += 1
+        return count
+
+    def _split_mixed_pair(self, pos_a, pos_b, placed_positions):
+        """
+        Gestisce il caso in cui due piatti misti adiacenti condividono gli stessi tipi.
+
+        IMPORTANTE: se uno dei due piatti (quello appena piazzato) ha altri vicini
+        con lo stesso tipo oltre all'altro piatto, deve fare da PONTE → non splittiamo
+        quel tipo, lo lasciamo per il bridge/chain merge.
+        """
+        a = self.grid[pos_a[0]][pos_a[1]]
+        b = self.grid[pos_b[0]][pos_b[1]]
+        if not a or not b:
+            return False
+        if a.is_pure() or b.is_pure():
+            return False
+
+        tipos_a = sorted(p.tipo for p in a.pieces)
+        tipos_b = sorted(p.tipo for p in b.pieces)
+
+        shared = sorted(set(tipos_a) & set(tipos_b))
+        if not shared:
+            return False
+
+        pos_min = min(pos_a, pos_b)
+        pos_max = max(pos_a, pos_b)
+
+        any_moved = False
+        for idx, tipo in enumerate(shared):
+            # Controlla se pos_a è un ponte per questo tipo
+            # (ha altri vicini con tipo, oltre a pos_b)
+            a_is_bridge = (
+                    pos_a in placed_positions and
+                    self._count_neighbors_with_tipo(pos_a[0], pos_a[1], tipo, exclude_pos=pos_b) > 0
+            )
+            # Controlla se pos_b è un ponte per questo tipo
+            b_is_bridge = (
+                    pos_b in placed_positions and
+                    self._count_neighbors_with_tipo(pos_b[0], pos_b[1], tipo, exclude_pos=pos_a) > 0
+            )
+
+            # Se uno dei due è un ponte, NON splittiamo questo tipo —
+            # sarà il bridge/chain merge a gestirlo
+            if a_is_bridge or b_is_bridge:
+                continue
+
+            if idx % 2 == 0:
+                target, source = pos_min, pos_max
+            else:
+                target, source = pos_max, pos_min
+
+            moved = self._move_tipo(source, target, tipo)
+            if moved > 0:
+                any_moved = True
+
+        return any_moved
+
     def _merge_bridge_for_type(self, br, bc, tipo, placed_positions):
-        """
-        Bridge merge avanzato:
-        - Se esiste un target PURO neighbor con quel tipo: modalità GATHER
-          (tutte le fette del tipo convergono nel puro; il bridge si ripulisce del tipo)
-        - Altrimenti: modalità SPLIT (prima completa dove possibile, poi distribuisce residui)
-        """
         bridge = self.grid[br][bc]
         if not bridge or bridge.get_piece(tipo) is None:
             return
         if self._is_marked_to_remove((br, bc)):
             return
 
-        # vicini con quel tipo
         neigh = []
         for nr, nc in self.neighbors4(br, bc):
             if self._is_marked_to_remove((nr, nc)):
@@ -399,38 +471,31 @@ class GameState:
             if pl and pl.get_piece(tipo) is not None:
                 neigh.append((nr, nc))
 
-        # ---------------- TYPE SPLIT (misto vs misto) ----------------
-        if len(neigh) == 1:
-            nr, nc = neigh[0]
-            neighbor = self.grid[nr][nc]
-
-            if neighbor and not neighbor.is_pure() and not bridge.is_pure():
-                # entrambi misti -> separiamo i tipi
-                bridge_piece = bridge.get_piece(tipo)
-                neigh_piece = neighbor.get_piece(tipo)
-
-                if bridge_piece and neigh_piece:
-
-                    total = bridge_piece.count + neigh_piece.count
-
-                    # decidiamo il target in base alla quantità
-                    if bridge_piece.count >= neigh_piece.count:
-                        target = (br, bc)
-                        source = (nr, nc)
-                    else:
-                        target = (nr, nc)
-                        source = (br, bc)
-
-                    # sposta tutto quel tipo
-                    self._move_tipo(source, target, tipo)
-                    return
-
         if not neigh:
             return
 
+        # ---------------- TYPE SPLIT (misto vs misto, singolo vicino) ----------------
+        # Questo caso è già gestito da place_block via _split_mixed_pair PRIMA
+        # di chiamare _merge_bridge_for_type. Se siamo qui e il vicino è misto,
+        # il tipo potrebbe già essere stato spostato — ricontrolliamo lo stato.
+        if len(neigh) == 1:
+            nr, nc = neigh[0]
+            neighbor = self.grid[nr][nc]
+            bridge = self.grid[br][bc]  # rileggi dopo eventuali split
+            if not bridge or bridge.get_piece(tipo) is None:
+                return
+
+            if neighbor and not neighbor.is_pure() and bridge and not bridge.is_pure():
+                # già gestito da _split_mixed_pair, non fare nulla
+                return
+
         def piece_count_at(pos):
             r, c = pos
-            return self.grid[r][c].get_piece(tipo).count
+            pl = self.grid[r][c]
+            if not pl:
+                return 0
+            p = pl.get_piece(tipo)
+            return p.count if p else 0
 
         def can_receive(pos):
             r, c = pos
@@ -445,19 +510,14 @@ class GameState:
         # ---------- MODALITÀ GATHER (preferita se c'è un puro) ----------
         pure_targets = [pos for pos in neigh if self.grid[pos[0]][pos[1]].is_pure() and can_receive(pos)]
         if pure_targets:
-            # target puro: quello con più count (più vicino a 6)
             target_pos = max(pure_targets, key=piece_count_at)
 
             changed = True
             while changed:
                 changed = False
-
-                # 1) bridge -> target (ripulisce il bridge dal tipo)
                 moved = self._move_tipo((br, bc), target_pos, tipo)
                 if moved > 0:
                     changed = True
-
-                # 2) tutti i vicini -> target (anche vicini misti)
                 for pos in neigh:
                     if pos == target_pos:
                         continue
@@ -466,8 +526,7 @@ class GameState:
                     moved2 = self._move_tipo(pos, target_pos, tipo)
                     if moved2 > 0:
                         changed = True
-
-            return  # finita modalità gather
+            return
 
         # ---------- MODALITÀ SPLIT (nessun puro disponibile) ----------
         neigh = [pos for pos in neigh if can_receive(pos)]
@@ -480,7 +539,6 @@ class GameState:
             tp = pl.get_piece(tipo)
             free_total = pl.free_slots(MAX_SLICES)
             free_tipo = MAX_SLICES - tp.count
-            # completabile (arriva a 6 di quel tipo)
             can_complete = (tp.count + min(free_total, free_tipo) >= MAX_SLICES)
             return (1 if can_complete else 0, tp.count, free_total)
 
@@ -489,11 +547,9 @@ class GameState:
         changed = True
         while changed:
             changed = False
-
             bridge = self.grid[br][bc]
             if not bridge or bridge.get_piece(tipo) is None:
                 break
-
             for target_pos in neigh:
                 moved = self._move_tipo((br, bc), target_pos, tipo)
                 if moved > 0:
