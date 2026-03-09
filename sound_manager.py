@@ -97,20 +97,20 @@ class SoundManager:
     def __init__(self):
 
         self.slider_music = VolumeSlider(
-            195, 160, 300, 35,
+            250, 250, 400, 45,
             initial_value=0.4,
             knob_path="Sprites/pomello.png",
             label="Musica"
         )
 
         self.slider_sfx = VolumeSlider(
-            195, 245, 300, 35,
+            250, 350, 400, 45,
             initial_value=0.7,
             knob_path="Sprites/pomello.png",
             label="Effetti"
         )
 
-        self.button_resume = Button(250, 268, 200, 90, "Sprites/Button/button_resume.png")
+        self.button_resume = Button(335, 400, 220, 120, "Sprites/Button/button_resume.png")
 
         self.update_volumes()
 
