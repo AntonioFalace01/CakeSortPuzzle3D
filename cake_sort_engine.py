@@ -555,28 +555,133 @@ class GameState:
                 if moved > 0:
                     changed = True
 
-
     def chain_merge_from_type(self, tipo, placed_positions):
-        """
-        Risolve TUTTI i merge possibili per quel tipo, ma dando priorità assoluta
-        alla componente connessa che parte dalle celle piazzate (così il vicino V2 sopra
-        si unisce subito al V appena piazzato).
-        """
-        # costruisci l'insieme di celle da risolvere: unione delle componenti connesse
-        # di tipo 'tipo' che partono dalle celle piazzate
         active_cells = set()
         for (pr, pc) in placed_positions:
             active_cells |= self._connected_component_of_type_from(pr, pc, tipo)
 
-        # se non c'è niente connesso al piazzato, fallback: niente da fare
         if not active_cells:
             return
 
+        # --- FASE PRE-BRIDGE ---
+        # Ordina placed_positions mettendo prima i "bridge interni":
+        # celle che hanno vicini con 'tipo' sia dentro placed_positions che fuori.
+        def bridge_priority(pos):
+            pr, pc = pos
+            plate = self.grid[pr][pc]
+            if not plate or plate.get_piece(tipo) is None:
+                return 0
+            if plate.is_pure():
+                # i puri non fanno da ponte, sono destinazione
+                return -1
+
+            pure_count = 0
+            mixed_outer_count = 0
+            for nr, nc in self.neighbors4(pr, pc):
+                if self._is_marked_to_remove((nr, nc)):
+                    continue
+                npl = self.grid[nr][nc]
+                if not npl or npl.get_piece(tipo) is None:
+                    continue
+                if npl.is_pure():
+                    pure_count += 1
+                elif (nr, nc) not in placed_positions:
+                    mixed_outer_count += 1
+
+            # ponte = misto con almeno un puro vicino (placed o no)
+            # + bonus se ha anche misti esterni da raccogliere
+            return pure_count * 2 + mixed_outer_count
+
+        sorted_placed = sorted(placed_positions, key=bridge_priority, reverse=True)
+
+        for (pr, pc) in sorted_placed:
+            plate = self.grid[pr][pc]
+            if not plate or plate.get_piece(tipo) is None:
+                continue
+            if self._is_marked_to_remove((pr, pc)):
+                continue
+            # Solo i misti fanno da bridge
+            if plate.is_pure():
+                continue
+
+            pure_neighbors = []
+            mixed_neighbors = []
+            for nr, nc in self.neighbors4(pr, pc):
+                if self._is_marked_to_remove((nr, nc)):
+                    continue
+                npl = self.grid[nr][nc]
+                if not npl or npl.get_piece(tipo) is None:
+                    continue
+                if npl.is_pure():
+                    # puro vicino = destinazione (sia placed che pre-esistente)
+                    pure_neighbors.append((nr, nc))
+                else:
+                    # misto vicino = sorgente da raccogliere
+                    mixed_neighbors.append((nr, nc))
+
+            # Caso 1: bridge tra misti e un puro
+            if pure_neighbors:
+                def piece_count_at(pos):
+                    pl = self.grid[pos[0]][pos[1]]
+                    if not pl: return 0
+                    p = pl.get_piece(tipo)
+                    return p.count if p else 0
+
+                target_pure = max(pure_neighbors, key=piece_count_at)
+
+                # Step 1: tutti i misti vicini (incluso bridge stesso) versano nel target
+                for mn in mixed_neighbors:
+                    if self._is_marked_to_remove(mn):
+                        continue
+                    mpl = self.grid[mn[0]][mn[1]]
+                    if mpl and mpl.get_piece(tipo) is not None:
+                        self._move_tipo(mn, (pr, pc), tipo)  # prima raccoglie nel bridge
+
+                # Step 2: bridge → puro
+                changed_inner = True
+                while changed_inner:
+                    changed_inner = False
+                    moved = self._move_tipo((pr, pc), target_pure, tipo)
+                    if moved > 0:
+                        changed_inner = True
+                    for pn in pure_neighbors:
+                        if pn == target_pure:
+                            continue
+                        moved2 = self._move_tipo(pn, target_pure, tipo)
+                        if moved2 > 0:
+                            changed_inner = True
+
+            # Caso 2: bridge tra due puri, nessun misto
+            elif len(pure_neighbors) >= 2:
+                def piece_count_at(pos):
+                    pl = self.grid[pos[0]][pos[1]]
+                    if not pl: return 0
+                    p = pl.get_piece(tipo)
+                    return p.count if p else 0
+
+                target_pure = max(pure_neighbors, key=piece_count_at)
+                changed_inner = True
+                while changed_inner:
+                    changed_inner = False
+                    moved = self._move_tipo((pr, pc), target_pure, tipo)
+                    if moved > 0:
+                        changed_inner = True
+                    for pn in pure_neighbors:
+                        if pn == target_pure:
+                            continue
+                        moved2 = self._move_tipo(pn, target_pure, tipo)
+                        if moved2 > 0:
+                            changed_inner = True
+
+            # Ricalcola active_cells
+            active_cells = set()
+            for (pr2, pc2) in placed_positions:
+                active_cells |= self._connected_component_of_type_from(pr2, pc2, tipo)
+
+        # --- MERGE A CATENA STANDARD ---
         changed = True
         while changed:
             changed = False
-
-            # importa: lista stabile (così possiamo break/ricominciare)
             cell_list = list(active_cells)
 
             for r, c in cell_list:
@@ -595,15 +700,15 @@ class GameState:
                     if not nplate or nplate.get_piece(tipo) is None:
                         continue
 
-                    target_pos, source_pos = self._pick_target_source((r, c), (nr, nc), tipo, placed_positions)
+                    target_pos, source_pos = self._pick_target_source(
+                        (r, c), (nr, nc), tipo, placed_positions
+                    )
                     if target_pos is None:
                         continue
 
                     moved = self._move_tipo(source_pos, target_pos, tipo)
                     if moved > 0:
                         changed = True
-                        # dopo un movimento la componente può cambiare (celle svuotate),
-                        # ricalcoliamo active_cells ripartendo dai piazzati
                         active_cells = set()
                         for (pr, pc) in placed_positions:
                             active_cells |= self._connected_component_of_type_from(pr, pc, tipo)
@@ -612,12 +717,9 @@ class GameState:
                 if changed:
                     break
 
-        # pulizia piatti vuoti
         for r, c in list(active_cells):
             if self.grid[r][c] and self.grid[r][c].is_empty():
                 self.grid[r][c] = None
-
-    # ---------------- CLEANUP ----------------
 
     def resolve_groups(self):
         for r in range(self.rows):
