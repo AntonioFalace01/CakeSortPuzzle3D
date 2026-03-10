@@ -39,19 +39,28 @@ class Game:
             next_thr = 1
         self.score_bar.set_progress(self.unlock.total_score, next_thr)
 
-        self.options_area = (40, 120)
-        self.options_spacing = 90
-        self.block_h_spacing = 60
-        self.cell_size = (75, 75)
-
+        # ----------------------------
+        # OPTIONS PANEL LAYOUT (FIXED)
+        # ----------------------------
+        self.options_area = (40, 120)          # top-left del pannello
         self.options_count = 3
-        self.options_panel_pad = 14
+        self.cell_size = (75, 75)
+        self.options_panel_extend_top = 80  # px, quanto vuoi allungare verso l'alto
+
+        # distanza tra opzione i e opzione i+1 (verticale)
+        self.options_row_step = 170
+
+        # distanza tra i 2 piatti di un doppio H e doppio V
+        self.block_h_spacing = 85
+        self.block_v_spacing = 95
+
+        # padding interno del pannello
+        self.options_panel_pad = 25
 
         self.last_time = pygame.time.get_ticks()
 
         self.current_options = []
         self.sprites = []
-        # tiene traccia di quali opzioni sono state usate (indice -> True)
         self.used_options = set()
 
         self.drag_sprite = None
@@ -75,21 +84,18 @@ class Game:
         self.active_slice = None  # animazione attiva corrente
 
     def _mark_option_used(self, opt_index):
-        """Marca un'opzione come usata e nasconde i suoi sprite."""
         self.used_options.add(opt_index)
         for sp in self.sprites:
             if sp.opt_index == opt_index:
                 sp.placed = True
 
     def _all_options_used(self):
-        """Controlla se tutte le opzioni correnti sono state usate."""
         for oi in range(len(self.current_options)):
             if oi not in self.used_options:
                 return False
         return True
 
     def _get_available_options(self):
-        """Ritorna lista di (indice, opzione) non ancora usate."""
         available = []
         for oi, opt in enumerate(self.current_options):
             if oi not in self.used_options:
@@ -157,10 +163,8 @@ class Game:
                 s.placed_cell = (rr, cc)
                 s.placed = True
 
-            # Marca opzione come usata (NON rigenera)
             self._mark_option_used(opt_index)
 
-            # Rigenera SOLO se tutte e 3 sono state usate
             if self._all_options_used():
                 self.generate_options()
 
@@ -171,22 +175,24 @@ class Game:
         self.ai_pending = None
         self.ai_animating = False
         self.ai_anim_sprites = []
-        # Controlla game over dopo piazzamento IA
+
         if not self._has_any_move():
             self.ai_game_over = True
 
     def _rebuild_sprites_from_current_options(self):
         self.sprites = []
         x0, y0 = self.options_area
-        y = y0
+        pad = self.options_panel_pad
+        x = x0 + pad
+        y = y0 + pad
 
         for opt_index, opt in enumerate(self.current_options):
             plates = opt["plates"]
             orient = opt["orientation"]
 
             if orient == "H" and len(plates) == 2:
-                sp0 = PlateSprite(plates[0], x0, y, cell_size=self.cell_size)
-                sp1 = PlateSprite(plates[1], x0 + self.block_h_spacing, y, cell_size=self.cell_size)
+                sp0 = PlateSprite(plates[0], x, y, cell_size=self.cell_size)
+                sp1 = PlateSprite(plates[1], x + self.block_h_spacing, y, cell_size=self.cell_size)
                 sp0.opt_index = opt_index
                 sp1.opt_index = opt_index
                 sp0.plate_index = 0
@@ -197,11 +203,11 @@ class Game:
                     sp1.placed = True
                     sp1.visible = False
                 self.sprites.extend([sp0, sp1])
-                y += self.options_spacing
+                y += self.options_row_step
 
             elif orient == "V" and len(plates) == 2:
-                sp0 = PlateSprite(plates[0], x0, y, cell_size=self.cell_size)
-                sp1 = PlateSprite(plates[1], x0, y + 62, cell_size=self.cell_size)
+                sp0 = PlateSprite(plates[0], x, y, cell_size=self.cell_size)
+                sp1 = PlateSprite(plates[1], x, y + self.block_v_spacing, cell_size=self.cell_size)
                 sp0.opt_index = opt_index
                 sp1.opt_index = opt_index
                 sp0.plate_index = 0
@@ -212,17 +218,17 @@ class Game:
                     sp1.placed = True
                     sp1.visible = False
                 self.sprites.extend([sp0, sp1])
-                y += self.options_spacing
+                y += self.options_row_step
 
             else:
-                sp = PlateSprite(plates[0], x0, y, cell_size=self.cell_size)
+                sp = PlateSprite(plates[0], x, y, cell_size=self.cell_size)
                 sp.opt_index = opt_index
                 sp.plate_index = 0
                 if opt_index in self.used_options:
                     sp.placed = True
                     sp.visible = False
                 self.sprites.append(sp)
-                y += self.options_spacing
+                y += self.options_row_step
 
     def generate_options(self):
         self.current_options = generate_three_options_active(self.unlock.active_types)
@@ -230,38 +236,40 @@ class Game:
         self.sprites = []
 
         x0, y0 = self.options_area
-        y = y0
+        pad = self.options_panel_pad
+        x = x0 + pad
+        y = y0 + pad
 
         for opt_index, opt in enumerate(self.current_options):
             plates = opt["plates"]
             orient = opt["orientation"]
 
             if orient == "H" and len(plates) == 2:
-                sp0 = PlateSprite(plates[0], x0, y, cell_size=self.cell_size)
-                sp1 = PlateSprite(plates[1], x0 + self.block_h_spacing, y, cell_size=self.cell_size)
+                sp0 = PlateSprite(plates[0], x, y, cell_size=self.cell_size)
+                sp1 = PlateSprite(plates[1], x + self.block_h_spacing, y, cell_size=self.cell_size)
                 sp0.opt_index = opt_index
                 sp1.opt_index = opt_index
                 sp0.plate_index = 0
                 sp1.plate_index = 1
                 self.sprites.extend([sp0, sp1])
-                y += self.options_spacing
+                y += self.options_row_step
 
             elif orient == "V" and len(plates) == 2:
-                sp0 = PlateSprite(plates[0], x0, y, cell_size=self.cell_size)
-                sp1 = PlateSprite(plates[1], x0, y + 62, cell_size=self.cell_size)
+                sp0 = PlateSprite(plates[0], x, y, cell_size=self.cell_size)
+                sp1 = PlateSprite(plates[1], x, y + self.block_v_spacing, cell_size=self.cell_size)
                 sp0.opt_index = opt_index
                 sp1.opt_index = opt_index
                 sp0.plate_index = 0
                 sp1.plate_index = 1
                 self.sprites.extend([sp0, sp1])
-                y += self.options_spacing
+                y += self.options_row_step
 
             else:
-                sp = PlateSprite(plates[0], x0, y, cell_size=self.cell_size)
+                sp = PlateSprite(plates[0], x, y, cell_size=self.cell_size)
                 sp.opt_index = opt_index
                 sp.plate_index = 0
                 self.sprites.append(sp)
-                y += self.options_spacing
+                y += self.options_row_step
 
         if SFX.spawn:
             SFX.spawn.play()
@@ -288,10 +296,25 @@ class Game:
 
     def _options_panel_rect(self):
         x0, y0 = self.options_area
-        h = (self.options_count - 1) * self.options_spacing + self.cell_size[1]
-        panel_w = 85
-        rect = pygame.Rect(x0, y0, panel_w, h)
-        rect = rect.inflate(self.options_panel_pad * 2, self.options_panel_pad * 2)
+        pad = self.options_panel_pad
+
+        # larghezza: contenere un doppio H
+        panel_w = pad * 2 + (self.cell_size[0] + self.block_h_spacing)
+
+        # altezza: deve contenere anche un doppio V su una riga
+        row_h_single = self.cell_size[1]
+        row_h_double_v = self.block_v_spacing + self.cell_size[1]
+        row_h = max(row_h_single, row_h_double_v)
+
+        panel_h = pad * 2 + (self.options_count - 1) * self.options_row_step + row_h
+
+        rect = pygame.Rect(x0, y0, panel_w, panel_h)
+
+        # estendi SOLO verso l'alto
+        extra = self.options_panel_extend_top
+        rect.y -= extra
+        rect.h += extra
+
         return rect
 
     def _has_any_move(self):
@@ -419,7 +442,6 @@ class Game:
         return start_r, start_c, coords
 
     def gest_eventi(self, posizione_mouse, event=None):
-        # Game over pendente dall'IA
         if self.ai_game_over:
             self.ai_game_over = False
             return "game_over"
@@ -433,25 +455,19 @@ class Game:
                 if self.ai_animating:
                     return None
 
-                # Passa solo le opzioni non ancora usate al solver
                 available = self._get_available_options()
                 if not available:
                     print("IA: tutte le opzioni gia usate")
                     return None
 
-                # Costruisci lista opzioni disponibili per il solver
                 available_opts = [opt for (oi, opt) in available]
                 available_indices = [oi for (oi, opt) in available]
 
-                move = self.ai_solver.choose_move(
-                    self.state, available_opts, debug=False
-                )
+                move = self.ai_solver.choose_move(self.state, available_opts, debug=False)
                 if move is None:
                     print("IA: nessuna mossa trovata")
                     return None
 
-                # Il solver ritorna indice relativo alla lista available_opts
-                # Converto in indice assoluto di current_options
                 solver_oi, r, c = move
                 if solver_oi >= len(available_indices):
                     print("IA: indice solver fuori range")
@@ -474,10 +490,7 @@ class Game:
                 sp.start_drag(posizione_mouse)
                 if sp.dragging:
                     self.drag_sprite = sp
-                    self.drag_group = [
-                        s for s in self.sprites
-                        if s.opt_index == sp.opt_index and not s.placed
-                    ]
+                    self.drag_group = [s for s in self.sprites if s.opt_index == sp.opt_index and not s.placed]
                     ax, ay = sp.rect.topleft
                     self._group_offsets = []
                     for s in self.drag_group:
@@ -507,24 +520,7 @@ class Game:
                     )
 
                     prev_score = self.state.score
-
-                    before = self.state.snapshot_grid_deep()
-                    before_score = self.state.score
-                    placed_desc = " | ".join(
-                        "".join(f"{p.tipo}{p.count}" for p in pl.pieces) for pl in opt["plates"]
-                    )
-                    print("\n===================================================")
-                    print(f"MOSSA: piazzo BLOCCO [{placed_desc}] orient={opt['orientation']} start=({start_r},{start_c})")
-                    print("SCORE prima:", before_score)
-
                     ok = self.state.place_block(opt, start_r, start_c)
-
-                    after = self.state.snapshot_grid_deep()
-                    after_score = self.state.score
-                    print("OK:", ok, " | SCORE dopo:", after_score, " | delta:", after_score - before_score)
-                    self.state.print_grid_compact("GRID DOPO (stato logico)")
-                    self.state.print_diff(before, after, "DIFF prima -> dopo")
-                    print("===================================================\n")
 
                     if ok:
                         self._spawn_slice_animations_from_events()
@@ -536,10 +532,8 @@ class Game:
                             s.snap_to_cell_topleft(self._cell_topleft(rr, cc))
                             s.placed_cell = (rr, cc)
 
-                        # Marca opzione come usata
                         self._mark_option_used(self.drag_sprite.opt_index)
 
-                        # Rigenera solo se tutte usate
                         if self._all_options_used():
                             self.generate_options()
 
