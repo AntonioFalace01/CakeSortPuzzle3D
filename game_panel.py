@@ -39,29 +39,21 @@ class Game:
             next_thr = 1
         self.score_bar.set_progress(self.unlock.total_score, next_thr)
 
-        # ----------------------------
-        # OPTIONS PANEL LAYOUT (FIXED)
-        # ----------------------------
-        self.options_area = (40, 120)          # top-left del pannello
-        self.options_count = 3
-        self.cell_size = (75, 75)
-        self.options_panel_extend_top = 80  # px, quanto vuoi allungare verso l'alto
-
         # distanza tra opzione i e opzione i+1 (verticale)
         self.options_row_step = 170
 
         # distanza tra i 2 piatti di un doppio H e doppio V
         self.block_h_spacing = 85
-        self.block_v_spacing = 95
+        self.block_v_spacing = 85
 
-        # padding interno del pannello
-        self.options_panel_pad = 25
+        self.options_area = (40, 120)
 
         self.last_time = pygame.time.get_ticks()
 
         self.current_options = []
         self.sprites = []
         self.used_options = set()
+        self.cell_size = (75, 75)
 
         self.drag_sprite = None
         self.drag_group = None
@@ -79,11 +71,13 @@ class Game:
         self.ai_anim_duration = 0.75
         self.ai_game_over = False
 
+    # --------- FIX: non usare "placed" per bloccare le opzioni usate ----------
     def _mark_option_used(self, opt_index):
+        """Segna opzione come usata e nasconde gli sprite dell'opzione (senza toccare placed)."""
         self.used_options.add(opt_index)
         for sp in self.sprites:
             if sp.opt_index == opt_index:
-                sp.placed = True
+                sp.visible = False  # sparisce dalla colonna opzioni
 
     def _all_options_used(self):
         for oi in range(len(self.current_options)):
@@ -99,14 +93,12 @@ class Game:
         return available
 
     def _start_ai_drag(self, opt_index, start_r, start_c):
-        group = [s for s in self.sprites if s.opt_index == opt_index and s.visible and not s.placed]
-
-        if not group:
-            group = [s for s in self.sprites if s.opt_index == opt_index]
+        # prende gli sprite dell'opzione SOLO se non è già usata
+        group = [s for s in self.sprites if s.opt_index == opt_index and s.visible]
 
         if not group:
             self._rebuild_sprites_from_current_options()
-            group = [s for s in self.sprites if s.opt_index == opt_index and not s.placed]
+            group = [s for s in self.sprites if s.opt_index == opt_index and s.visible]
 
         if not group:
             print("IA: sprites non trovati per opzione", opt_index)
@@ -177,10 +169,7 @@ class Game:
 
     def _rebuild_sprites_from_current_options(self):
         self.sprites = []
-        x0, y0 = self.options_area
-        pad = self.options_panel_pad
-        x = x0 + pad
-        y = y0 + pad
+        x, y = self.options_area
 
         for opt_index, opt in enumerate(self.current_options):
             plates = opt["plates"]
@@ -193,11 +182,11 @@ class Game:
                 sp1.opt_index = opt_index
                 sp0.plate_index = 0
                 sp1.plate_index = 1
+
                 if opt_index in self.used_options:
-                    sp0.placed = True
                     sp0.visible = False
-                    sp1.placed = True
                     sp1.visible = False
+
                 self.sprites.extend([sp0, sp1])
                 y += self.options_row_step
 
@@ -208,11 +197,11 @@ class Game:
                 sp1.opt_index = opt_index
                 sp0.plate_index = 0
                 sp1.plate_index = 1
+
                 if opt_index in self.used_options:
-                    sp0.placed = True
                     sp0.visible = False
-                    sp1.placed = True
                     sp1.visible = False
+
                 self.sprites.extend([sp0, sp1])
                 y += self.options_row_step
 
@@ -220,9 +209,10 @@ class Game:
                 sp = PlateSprite(plates[0], x, y, cell_size=self.cell_size)
                 sp.opt_index = opt_index
                 sp.plate_index = 0
+
                 if opt_index in self.used_options:
-                    sp.placed = True
                     sp.visible = False
+
                 self.sprites.append(sp)
                 y += self.options_row_step
 
@@ -231,10 +221,7 @@ class Game:
         self.used_options = set()
         self.sprites = []
 
-        x0, y0 = self.options_area
-        pad = self.options_panel_pad
-        x = x0 + pad
-        y = y0 + pad
+        x, y = self.options_area
 
         for opt_index, opt in enumerate(self.current_options):
             plates = opt["plates"]
@@ -284,29 +271,6 @@ class Game:
             )
             self.slice_animations.append(anim)
 
-    def _options_panel_rect(self):
-        x0, y0 = self.options_area
-        pad = self.options_panel_pad
-
-        # larghezza: contenere un doppio H
-        panel_w = pad * 2 + (self.cell_size[0] + self.block_h_spacing)
-
-        # altezza: deve contenere anche un doppio V su una riga
-        row_h_single = self.cell_size[1]
-        row_h_double_v = self.block_v_spacing + self.cell_size[1]
-        row_h = max(row_h_single, row_h_double_v)
-
-        panel_h = pad * 2 + (self.options_count - 1) * self.options_row_step + row_h
-
-        rect = pygame.Rect(x0, y0, panel_w, panel_h)
-
-        # estendi SOLO verso l'alto
-        extra = self.options_panel_extend_top
-        rect.y -= extra
-        rect.h += extra
-
-        return rect
-
     def _has_any_move(self):
         for oi, opt in enumerate(self.current_options):
             if oi in self.used_options:
@@ -316,15 +280,6 @@ class Game:
                     if self.state.can_place_block(opt, r, c):
                         return True
         return False
-
-    def _draw_options_panel(self, window):
-        rect = self._options_panel_rect()
-        shadow = rect.move(5, 5)
-        pygame.draw.rect(window, (70, 45, 25), shadow, border_radius=16)
-        pygame.draw.rect(window, (155, 115, 75), rect, border_radius=16)
-        pygame.draw.rect(window, (215, 175, 125), rect, width=3, border_radius=16)
-        inner = rect.inflate(-10, -10)
-        pygame.draw.rect(window, (175, 135, 95), inner, width=2, border_radius=14)
 
     def draw(self, window):
         now = pygame.time.get_ticks()
@@ -341,6 +296,7 @@ class Game:
 
         self.last_time = now
 
+        # se in griglia quel piatto è stato eliminato, nascondi lo sprite piazzato
         for sp in self.sprites:
             if sp.placed and sp.placed_cell:
                 r, c = sp.placed_cell
@@ -349,7 +305,6 @@ class Game:
 
         self.tavolo.draw(window)
         self.button_pause.draw(window)
-        self._draw_options_panel(window)
 
         for sp in self.sprites:
             sp.draw(window, dt)
@@ -476,12 +431,21 @@ class Game:
 
         if event.type == pygame.MOUSEBUTTONDOWN:
             for sp in reversed(self.sprites):
-                if sp.placed or not sp.visible:
+                # FIX: non controllare sp.placed qui, perché un'opzione "usata"
+                # viene gestita con used_options + visible=False
+                if not sp.visible:
                     continue
+                if sp.opt_index in self.used_options:
+                    continue
+
                 sp.start_drag(posizione_mouse)
                 if sp.dragging:
                     self.drag_sprite = sp
-                    self.drag_group = [s for s in self.sprites if s.opt_index == sp.opt_index and not s.placed]
+                    self.drag_group = [s for s in self.sprites
+                                       if s.opt_index == sp.opt_index
+                                       and s.visible
+                                       and (s.opt_index not in self.used_options)]
+
                     ax, ay = sp.rect.topleft
                     self._group_offsets = []
                     for s in self.drag_group:
@@ -518,10 +482,12 @@ class Game:
                         self._handle_score_unlocks(prev_score, self.state.score)
                         SFX.place.play()
 
+                        # snap in griglia e marca come piazzati (questo è "placed" vero)
                         for s in self.drag_group:
                             rr, cc = coords[s.plate_index]
                             s.snap_to_cell_topleft(self._cell_topleft(rr, cc))
                             s.placed_cell = (rr, cc)
+                            s.placed = True
 
                         self._mark_option_used(self.drag_sprite.opt_index)
 
