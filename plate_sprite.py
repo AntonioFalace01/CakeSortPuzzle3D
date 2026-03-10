@@ -25,7 +25,7 @@ class PlateSprite:
         self.spawning = True
         self.spawn_time = 0.0
         self.spawn_duration = 0.35
-        self.spawn_offset_y = 35
+        self.spawn_offset_y = -160
         # AI auto-move
         self.ai_moving = False
         self.ai_time = 0.0
@@ -107,10 +107,13 @@ class PlateSprite:
             self.spawn_time += dt
             progress = min(1.0, self.spawn_time / self.spawn_duration)
 
-            ease = 1 - (1 - progress) ** 3
+            ease = 1 - (1 - progress) ** 2
 
             y_offset = self.spawn_offset_y * (1 - ease)
             rect.y += y_offset
+
+            alpha = int(255 * progress)
+            self.surface.set_alpha(alpha)
 
             if progress < 0.8:
                 scale = 0.8 + 0.25 * ease
