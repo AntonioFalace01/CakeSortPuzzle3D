@@ -371,115 +371,58 @@ class Game:
                         return True
         return False
 
-    def draw(self, window):
-        now = pygame.time.get_ticks()
-        dt = (now - self.last_time) / 1000.0
+    def _draw_double_links_in_options(self, window):
+        """
+        Rettangolino bianco tra i 2 piatti di un'opzione doppia (H/V),
+        SOLO nell'area opzioni (sinistra). Non viene disegnato in griglia.
+        """
+        link_color = (255, 255, 255)
 
-        if self.ai_animating and self.ai_anim_sprites:
-            finished_all = True
-            for s in self.ai_anim_sprites:
-                done = s.update_ai_move(dt)
-                if not done:
-                    finished_all = False
-            if finished_all:
-                self._finish_ai_drop()
+        thickness = 15   # spessore del rettangolino
+        inset = 10       # quanto entra dentro i piatti
 
-        self.last_time = now
-
-        # se in griglia quel piatto è stato eliminato, nascondi lo sprite piazzato
+        # raggruppa sprite visibili per opt_index
+        by_opt = {}
         for sp in self.sprites:
-            if sp.placed and sp.placed_cell:
-                r, c = sp.placed_cell
-                if self.state.grid[r][c] is None and (r, c) not in self.state.plates_to_remove:
-                    sp.visible = False
+            if not sp.visible:
+                continue
+            if sp.opt_index is None:
+                continue
+            if sp.opt_index in self.used_options:
+                continue
+            by_opt.setdefault(sp.opt_index, []).append(sp)
 
-        self.tavolo.draw(window)
-        self.button_pause.draw(window)
+        for opt_index, group in by_opt.items():
+            if len(group) != 2:
+                continue
 
-        for sp in self.sprites:
-            sp.draw(window, dt)
+            opt = self.current_options[opt_index]
+            orient = opt["orientation"]
+            if orient not in ("H", "V"):
+                continue
 
-        for r in range(self.state.rows):
-            for c in range(self.state.cols):
-                plate = self.state.grid[r][c]
-                if plate is not None:
-                    cx_cell = self.tavolo.x + self.tavolo.padding + c * self.tavolo.larg_cella
-                    cy_cell = self.tavolo.y + self.tavolo.padding + r * self.tavolo.alt_cella
-                    center_x = cx_cell + self.tavolo.larg_cella // 2
-                    center_y = cy_cell + self.tavolo.alt_cella // 2
-                    plate_size = min(self.tavolo.larg_cella, self.tavolo.alt_cella)
-                    Assets.draw_plate(window, plate, center_x, center_y, plate_size=plate_size)
+            # ordina per plate_index: 0 e 1
+            group.sort(key=lambda s: s.plate_index)
+            a, b = group[0], group[1]
+            ra, rb = a.rect, b.rect
 
-        alive_anims = []
-        for anim in self.slice_animations:
-            anim.update(dt)
-            if anim.alive:
-                alive_anims.append(anim)
+            if orient == "H":
+                x1 = ra.right - inset
+                x2 = rb.left + inset
+                if x2 <= x1:
+                    continue
+                cy = (ra.centery + rb.centery) // 2
+                rect = pygame.Rect(x1, cy - thickness // 2, x2 - x1, thickness)
 
-        if self.slice_animations and not alive_anims:
-            self.state.finalize_removals()
+            else:  # orient == "V"
+                y1 = ra.bottom - inset
+                y2 = rb.top + inset
+                if y2 <= y1:
+                    continue
+                cx = (ra.centerx + rb.centerx) // 2
+                rect = pygame.Rect(cx - thickness // 2, y1, thickness, y2 - y1)
 
-        self.slice_animations = alive_anims
-
-        for anim in self.slice_animations:
-            anim.draw(window)
-
-        self.score_bar.update(dt)
-        label = "Prossima torta" if self.unlock.get_next_threshold() is not None else "Tutte sbloccate"
-        self.score_bar.draw(window, label=label)
-
-    def _cell_topleft(self, r, c):
-        cx = self.tavolo.x + self.tavolo.padding + c * self.tavolo.larg_cella
-        cy = self.tavolo.y + self.tavolo.padding + r * self.tavolo.alt_cella
-        return (cx, cy)
-
-    def _cell_center(self, r, c):
-        cx_cell = self.tavolo.x + self.tavolo.padding + c * self.tavolo.larg_cella
-        cy_cell = self.tavolo.y + self.tavolo.padding + r * self.tavolo.alt_cella
-        center_x = cx_cell + self.tavolo.larg_cella // 2
-        center_y = cy_cell + self.tavolo.alt_cella // 2
-        return center_x, center_y
-
-    def _handle_score_unlocks(self, prev_score, new_score):
-        delta = max(0, new_score - prev_score)
-        if delta > 0:
-            unlocked = self.unlock.add_score(delta)
-            next_thr = self.unlock.get_next_threshold()
-            if next_thr is None:
-                next_thr = 1
-            self.score_bar.set_progress(self.unlock.total_score, next_thr)
-            if unlocked:
-                self.generate_options()
-
-        for sp in self.sprites:
-            if sp.placed and sp.placed_cell:
-                r, c = sp.placed_cell
-                if self.state.grid[r][c] is None:
-                    sp.visible = False
-
-    def _block_cells_for_drop(self, opt, drop_r, drop_c, dragged_plate_index):
-        orient = opt["orientation"]
-        plates = opt["plates"]
-        start_r, start_c = drop_r, drop_c
-
-        if orient == "H" and len(plates) == 2:
-            if dragged_plate_index == 1:
-                start_c = drop_c - 1
-            coords = [(start_r, start_c), (start_r, start_c + 1)]
-            return start_r, start_c, coords
-
-        if orient == "V" and len(plates) == 2:
-            if dragged_plate_index == 1:
-                start_r = drop_r - 1
-            coords = [(start_r, start_c), (start_r + 1, start_c)]
-            return start_r, start_c, coords
-
-        coords = [(start_r, start_c)]
-        return start_r, start_c, coords
-
-    # ------------------------------------------------------------------
-    # DRAW
-    # ------------------------------------------------------------------
+            pygame.draw.rect(window, link_color, rect)
 
     def draw(self, window):
         now = pygame.time.get_ticks()
@@ -546,6 +489,56 @@ class Game:
         self.score_bar.update(dt)
         label = "Prossima torta" if self.unlock.get_next_threshold() is not None else "Tutte sbloccate"
         self.score_bar.draw(window, label=label)
+
+    def _cell_topleft(self, r, c):
+        cx = self.tavolo.x + self.tavolo.padding + c * self.tavolo.larg_cella
+        cy = self.tavolo.y + self.tavolo.padding + r * self.tavolo.alt_cella
+        return (cx, cy)
+
+    def _cell_center(self, r, c):
+        cx_cell = self.tavolo.x + self.tavolo.padding + c * self.tavolo.larg_cella
+        cy_cell = self.tavolo.y + self.tavolo.padding + r * self.tavolo.alt_cella
+        center_x = cx_cell + self.tavolo.larg_cella // 2
+        center_y = cy_cell + self.tavolo.alt_cella // 2
+        return center_x, center_y
+
+    def _handle_score_unlocks(self, prev_score, new_score):
+        delta = max(0, new_score - prev_score)
+        if delta > 0:
+            unlocked = self.unlock.add_score(delta)
+            next_thr = self.unlock.get_next_threshold()
+            if next_thr is None:
+                next_thr = 1
+            self.score_bar.set_progress(self.unlock.total_score, next_thr)
+            if unlocked:
+                self.generate_options()
+
+        for sp in self.sprites:
+            if sp.placed and sp.placed_cell:
+                r, c = sp.placed_cell
+                if self.state.grid[r][c] is None:
+                    sp.visible = False
+
+    def _block_cells_for_drop(self, opt, drop_r, drop_c, dragged_plate_index):
+        orient = opt["orientation"]
+        plates = opt["plates"]
+        start_r, start_c = drop_r, drop_c
+
+        if orient == "H" and len(plates) == 2:
+            if dragged_plate_index == 1:
+                start_c = drop_c - 1
+            coords = [(start_r, start_c), (start_r, start_c + 1)]
+            return start_r, start_c, coords
+
+        if orient == "V" and len(plates) == 2:
+            if dragged_plate_index == 1:
+                start_r = drop_r - 1
+            coords = [(start_r, start_c), (start_r + 1, start_c)]
+            return start_r, start_c, coords
+
+        coords = [(start_r, start_c)]
+        return start_r, start_c, coords
+
 
     # ------------------------------------------------------------------
     # EVENTI
