@@ -506,7 +506,6 @@ class Game:
 
         self.tavolo.draw(window)
         self.button_pause.draw(window)
-        self._draw_options_panel(window)
 
         for sp in self.sprites:
             sp.draw(window, dt)
