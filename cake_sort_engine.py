@@ -339,8 +339,8 @@ class GameState:
     def _magnet_new_pure_plate(self, pr, pc, placed_positions):
         """
         Se il piatto appena piazzato è PURO, attrae dai vicini le fette dello stesso tipo.
-        NON ruba da un piatto misto che fa da ponte verso altre celle con lo stesso tipo
-        (altrimenti si crea un gap che impedisce il merge a catena successivo).
+        NON tocca nessun vicino (puro o misto) che ha a sua volta altri vicini con
+        lo stesso tipo: quel piatto è un relay e va lasciato al chain_merge.
         """
         plate = self.grid[pr][pc]
         if not plate:
@@ -362,12 +362,12 @@ class GameState:
                 if not nplate or nplate.get_piece(tipo) is None:
                     continue
 
-                # Se il vicino è misto, controlla se ha altri vicini con lo stesso tipo
-                # (escluso il piatto puro corrente): in tal caso è un ponte, non toccarlo.
-                if not nplate.is_pure():
-                    is_bridge = self._count_neighbors_with_tipo(nr, nc, tipo, exclude_pos=(pr, pc)) > 0
-                    if is_bridge:
-                        continue
+                # Se il vicino (puro O misto) ha altri vicini con lo stesso tipo
+                # escluso il piatto corrente, è un relay verso altre celle:
+                # NON rubare le sue fette o si crea un gap che blocca il merge.
+                is_bridge = self._count_neighbors_with_tipo(nr, nc, tipo, exclude_pos=(pr, pc)) > 0
+                if is_bridge:
+                    continue
 
                 moved = self._move_tipo((nr, nc), (pr, pc), tipo)
                 if moved > 0:
