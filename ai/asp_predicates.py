@@ -121,3 +121,23 @@ class Choose(Predicate):
     def set_R(self, v): self.R = v
     def get_C(self): return self.C
     def set_C(self, v): self.C = v
+
+class OccCount(Predicate):
+    """occ_count(R, C, T, K) — la cella (R,C) ha K fette di tipo T."""
+    predicate_name = "occ_count"
+
+    def __init__(self):
+        self.R = 0
+        self.C = 0
+        self.T = ""
+        self.K = 0
+        super().__init__([("R", int), ("C", int), ("T", str), ("K", int)])
+
+    def get_R(self): return self.R
+    def set_R(self, v): self.R = v
+    def get_C(self): return self.C
+    def set_C(self, v): self.C = v
+    def get_T(self): return self.T
+    def set_T(self, v): self.T = v
+    def get_K(self): return self.K
+    def set_K(self, v): self.K = v

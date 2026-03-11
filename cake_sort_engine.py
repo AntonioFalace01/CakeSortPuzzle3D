@@ -430,7 +430,7 @@ class GameState:
             if completed:
                 if (tr, tc) not in self.plates_to_remove:
                     self.plates_to_remove.append((tr, tc))
-                self.score += 10
+                self.score += 50
 
             # ── grid_after ───────────────────────────────────────────────
             # Stato da applicare DOPO l'animazione:
