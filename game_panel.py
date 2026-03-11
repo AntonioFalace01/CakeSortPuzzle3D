@@ -452,6 +452,7 @@ class Game:
 
         for sp in self.sprites:
             sp.draw(window, dt)
+            self._draw_double_links_in_options(window)
 
         # ---------------------------------------------------------------
         # Rendering griglia: usa display_grid (snapshot intermedio) se
