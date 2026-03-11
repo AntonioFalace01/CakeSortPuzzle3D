@@ -43,8 +43,8 @@ class Game:
         self.options_row_step = 170
 
         # distanza tra i 2 piatti di un doppio H e doppio V
-        self.block_h_spacing = 85
-        self.block_v_spacing = 85
+        self.block_h_spacing = 75
+        self.block_v_spacing = 75
 
         self.options_area = (40, 120)
 
