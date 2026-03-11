@@ -56,9 +56,9 @@ class Plate:
 
     def is_completed_pure(self, max_slices=MAX_SLICES):
         return (
-            self.total_slices() == max_slices
-            and len(self.pieces) == 1
-            and self.pieces[0].count == max_slices
+                self.total_slices() == max_slices
+                and len(self.pieces) == 1
+                and self.pieces[0].count == max_slices
         )
 
     def __repr__(self):
@@ -72,8 +72,17 @@ class GameState:
         self.grid = [[None for _ in range(cols)] for _ in range(rows)]
         self.score = 0
         self.last_animation_events = []
-        self.animation_snapshots = []  # lista di (evento, grid_prima, grid_dopo)
+        self.animation_snapshots = []
         self.plates_to_remove = []
+
+        # Lista piatta di eventi nell'ordine in cui _move_tipo li esegue.
+        # Ogni elemento: (tipo, count, from_pos, to_pos)
+        self._raw_events = []
+        # Snapshot della griglia DOPO il piazzamento dei nuovi pezzi,
+        # PRIMA di qualsiasi merge. Usato per ricostruire gli snapshot visivi.
+        self._pre_move_grid = None
+        # Celle coinvolte per ogni tipo durante i merge (per il pathfinding)
+        self._visited_by_tipo = {}  # {tipo: set of (r,c)}
 
     # ---------------- DEBUG ----------------
 
@@ -110,10 +119,6 @@ class GameState:
             print("events: []")
 
     def _connected_component_of_type_from(self, start_r, start_c, tipo):
-        """
-        Ritorna l'insieme di celle (r,c) connesse 4-dir che contengono 'tipo',
-        partendo da start. Se start non contiene tipo -> insieme vuoto.
-        """
         if not (0 <= start_r < self.rows and 0 <= start_c < self.cols):
             return set()
         start_plate = self.grid[start_r][start_c]
@@ -136,13 +141,6 @@ class GameState:
         return visited
 
     def _full_component_of_type(self, seed_cells, tipo):
-        """
-        Espande il componente connesso di 'tipo' partendo da un insieme
-        di celle seed, seguendo tutti i vicini 4-dir con quel tipo.
-        Differenza chiave rispetto a _connected_component_of_type_from:
-        accetta più seed e include celle pre-esistenti adiacenti,
-        garantendo che catene su 3+ piatti vengano sempre trovate.
-        """
         visited = set()
         stack = []
         for pos in seed_cells:
@@ -203,15 +201,317 @@ class GameState:
             if 0 <= rr < self.rows and 0 <= cc < self.cols:
                 yield rr, cc
 
-    # ---------------- PLACE BLOCK ----------------
+    # ---------------- SNAPSHOT VISIVO (POST-MOVE) ----------------
+
+    def _snap_deep(self, grid):
+        """Copia profonda di una griglia arbitraria."""
+        snap = [[None for _ in range(self.cols)] for _ in range(self.rows)]
+        for r in range(self.rows):
+            for c in range(self.cols):
+                plate = grid[r][c]
+                if plate is None:
+                    snap[r][c] = None
+                else:
+                    snap[r][c] = Plate([Piece(p.tipo, p.count) for p in plate.pieces])
+        return snap
+
+    def _apply_event_to_grid(self, grid, tipo, count, from_pos, to_pos):
+        """Applica un singolo evento di movimento su una griglia-copia."""
+        fr, fc = from_pos
+        tr, tc = to_pos
+        src = grid[fr][fc]
+        tgt = grid[tr][tc]
+        if src is None or tgt is None:
+            return 0
+
+        sp = src.get_piece(tipo)
+        tp = tgt.get_piece(tipo)
+        if sp is None:
+            return 0
+        if tp is None:
+            if tgt.is_empty():
+                tp = Piece(tipo, 0)
+                tgt.pieces.append(tp)
+            else:
+                return 0
+
+        can_take = min(count, sp.count, tgt.free_slots(MAX_SLICES), MAX_SLICES - tp.count)
+        if can_take <= 0:
+            return 0
+
+        src.remove(tipo, can_take)
+        tgt.add(tipo, can_take)
+        if src.is_empty():
+            grid[fr][fc] = None
+        return can_take
+
+    @staticmethod
+    def _manhattan(a, b):
+        return abs(a[0] - b[0]) + abs(a[1] - b[1])
+
+    def _find_relay_path(self, from_pos, to_pos, tipo, relay_cells):
+        """
+        Trova il percorso di hop adiacenti da from_pos a to_pos
+        passando solo per celle che sono relay reali (appaiono sia come
+        from_pos che come to_pos nei raw_events dello stesso tipo).
+
+        Restituisce lista di celle (escluso from_pos, incluso to_pos).
+        """
+        if self._manhattan(from_pos, to_pos) == 1:
+            return [to_pos]
+
+        # BFS limitata a from_pos, to_pos e relay reali
+        allowed = relay_cells | {from_pos, to_pos}
+
+        from collections import deque
+        queue = deque([[from_pos]])
+        seen = {from_pos}
+
+        while queue:
+            path = queue.popleft()
+            cur = path[-1]
+            if cur == to_pos:
+                return path[1:]
+            r, c = cur
+            for nr, nc in [(r - 1, c), (r + 1, c), (r, c - 1), (r, c + 1)]:
+                npos = (nr, nc)
+                if npos in seen:
+                    continue
+                if not (0 <= nr < self.rows and 0 <= nc < self.cols):
+                    continue
+                if npos not in allowed:
+                    continue
+                seen.add(npos)
+                queue.append(path + [npos])
+
+        return [to_pos]  # fallback: salto diretto (non dovrebbe servire)
+
+    def _expand_events_to_hops(self, raw_events, visited_by_tipo=None):
+        """
+        Espande gli eventi non-adiacenti in hop adiacenti.
+
+        Per un evento (tipo, count, A→C) dove Manhattan(A,C) > 1:
+        cerca tra gli altri raw_events un from_pos B tale che:
+          - stesso tipo e stesso to_pos C
+          - adiacente ad A (Manhattan == 1)
+          - adiacente a C (Manhattan == 1)
+        Se trovato, spezza in (A→B) e (B→C).
+
+        Poi applica ordinamento topologico: X→Y deve precedere Y→Z.
+        """
+
+        def manhattan(a, b):
+            return abs(a[0] - b[0]) + abs(a[1] - b[1])
+
+        # Passo 1: espandi hop non-adiacenti usando relay reali
+        raw_hops = []
+        for i, (tipo, count, from_pos, to_pos) in enumerate(raw_events):
+            if manhattan(from_pos, to_pos) == 1:
+                raw_hops.append((tipo, count, from_pos, to_pos))
+            else:
+                # Cerca relay B: altro raw_event con stesso tipo e stesso to_pos,
+                # il cui from_pos è adiacente sia a from_pos che a to_pos
+                relay = None
+                for j, (t2, c2, fp2, tp2) in enumerate(raw_events):
+                    if j == i:
+                        continue
+                    if t2 != tipo or tp2 != to_pos:
+                        continue
+                    if manhattan(from_pos, fp2) == 1 and manhattan(fp2, to_pos) == 1:
+                        relay = fp2
+                        break
+                if relay:
+                    raw_hops.append((tipo, count, from_pos, relay))
+                    raw_hops.append((tipo, count, relay, to_pos))
+                else:
+                    # Nessun relay trovato: salto diretto (adiacenti ma logica strana)
+                    raw_hops.append((tipo, count, from_pos, to_pos))
+
+        # Passo 2: ordinamento topologico
+        # hop i dipende da hop j se: raw_hops[j].to_pos == raw_hops[i].from_pos
+        # e stesso tipo (j deve precedere i)
+        from collections import defaultdict, deque
+        n = len(raw_hops)
+        in_degree = [0] * n
+        rdeps = defaultdict(list)  # rdeps[j] = lista di i che dipendono da j
+
+        for i in range(n):
+            ti, ci, fpi, tpi = raw_hops[i]
+            for j in range(n):
+                if j == i:
+                    continue
+                tj, cj, fpj, tpj = raw_hops[j]
+                if tj == ti and tpj == fpi:
+                    # j riempie fpi con tipo ti → i deve aspettare j
+                    in_degree[i] += 1
+                    rdeps[j].append(i)
+
+        queue = deque(idx for idx in range(n) if in_degree[idx] == 0)
+        ordered = []
+        while queue:
+            idx = queue.popleft()
+            ordered.append(raw_hops[idx])
+            for dep_i in rdeps[idx]:
+                in_degree[dep_i] -= 1
+                if in_degree[dep_i] == 0:
+                    queue.append(dep_i)
+
+        # Se ci sono cicli (non dovrebbe), aggiungi il resto nell'ordine originale
+        if len(ordered) < n:
+            emitted_ids = set(id(h) for h in ordered)
+            for h in raw_hops:
+                if id(h) not in emitted_ids:
+                    ordered.append(h)
+
+        # Fondi hop consecutivi con stesso (tipo, from_pos, to_pos):
+        # es. [C1:(1,1)->(0,1), C2:(1,1)->(0,1)] -> [C3:(1,1)->(0,1)]
+        merged = []
+        for hop in ordered:
+            tipo, count, fp, tp = hop
+            if merged and merged[-1][0] == tipo and merged[-1][2] == fp and merged[-1][3] == tp:
+                last = merged[-1]
+                merged[-1] = (last[0], last[1] + count, last[2], last[3])
+            else:
+                merged.append(list(hop))
+        # Converti in tuple
+        ordered = [tuple(h) for h in merged]
+
+        return ordered
+
+    def _build_animation_snapshots(self, visited_by_tipo):
+        """
+        Costruisce gli snapshot visivi per le animazioni.
+
+        1. Deduplica i raw_events (elimina cicli, tieni solo delta netto)
+        2. Espande hop non-adiacenti e ordina topologicamente
+        3. Costruisce grid_during / grid_after per ogni hop sul working grid
+
+        NOTA: score e plates_to_remove sono già stati calcolati in place_block
+        prima di chiamare questo metodo. Qui non si toccano.
+        """
+        self.animation_snapshots = []
+
+        # --- Deduplicazione netta ---
+        from collections import defaultdict as _dd
+        _net = _dd(int)
+        for _t, _c, _f, _p in self._raw_events:
+            _net[(_t, _f, _p)] += _c
+            _net[(_t, _p, _f)] -= _c
+
+        _seen = set()
+        deduped = []
+        for _t, _c, _f, _p in self._raw_events:
+            _key = (_t, _f, _p)
+            _rkey = (_t, _p, _f)
+            if _key in _seen or _rkey in _seen:
+                continue
+            net_fwd = _net.get(_key, 0)
+            net_bwd = _net.get(_rkey, 0)
+            if net_fwd > 0:
+                deduped.append((_t, net_fwd, _f, _p))
+                _seen.add(_key)
+            elif net_bwd > 0:
+                deduped.append((_t, net_bwd, _p, _f))
+                _seen.add(_rkey)
+
+        # --- Espansione hop + ordinamento topologico + fusione ---
+        expanded = self._expand_events_to_hops(deduped, visited_by_tipo)
+
+        if not expanded:
+            return
+
+        # --- Costruzione snapshot sul working grid ---
+        # Partiamo dal pre_move_grid. Per ogni hop applichiamo il movimento
+        # con il count ESATTO dell'hop (già deduplicato e fuso).
+        # Hop consecutivi con stessa (from_pos, to_pos) ma tipo diverso vengono
+        # processati insieme in un unico snapshot (es. S3+C1 da (0,0)→(1,0)).
+        working = self._snap_deep(self._pre_move_grid)
+
+        # Raggruppa hop consecutivi con stessa (from_pos, to_pos)
+        grouped = []
+        for hop in expanded:
+            tipo, count, from_pos, to_pos = hop
+            if grouped and grouped[-1][0][2] == from_pos and grouped[-1][0][3] == to_pos:
+                grouped[-1].append(hop)
+            else:
+                grouped.append([hop])
+
+        for group in grouped:
+            from_pos = group[0][2]
+            to_pos = group[0][3]
+            fr, fc = from_pos
+            tr, tc = to_pos
+
+            # Calcola gli actual per ogni hop del gruppo
+            actuals = []
+            for (tipo, count, fp, tp) in group:
+                src = working[fr][fc]
+                src_piece = src.get_piece(tipo) if src else None
+                available = src_piece.count if src_piece else 0
+                if available <= 0:
+                    actuals.append(0)
+                else:
+                    actuals.append(min(count, available))
+
+            # Salta il gruppo se tutti gli actual sono 0
+            if all(a == 0 for a in actuals):
+                continue
+
+            # grid_during: tutte le sorgenti svuotate (fette in volo), target invariato
+            grid_during = self._snap_deep(working)
+            for (tipo, count, fp, tp), actual in zip(group, actuals):
+                if actual <= 0:
+                    continue
+                src_d = grid_during[fr][fc]
+                if src_d and src_d.get_piece(tipo):
+                    src_d.remove(tipo, actual)
+                    if src_d.is_empty():
+                        grid_during[fr][fc] = None
+
+            # Applica i movimenti sul working grid
+            for (tipo, count, fp, tp), actual in zip(group, actuals):
+                if actual <= 0:
+                    continue
+                src = working[fr][fc]
+                src_piece = src.get_piece(tipo) if src else None
+                if src and src_piece:
+                    src.remove(tipo, actual)
+                    if src.is_empty():
+                        working[fr][fc] = None
+                tgt = working[tr][tc]
+                if tgt is None:
+                    working[tr][tc] = Plate([Piece(tipo, actual)])
+                else:
+                    tgt.add(tipo, actual)
+
+            # grid_after: stato dopo l'arrivo di tutte le fette del gruppo
+            grid_after = self._snap_deep(working)
+
+            # Genera uno snapshot per ogni hop del gruppo con actual > 0,
+            # tutti con lo stesso grid_during e grid_after
+            for (tipo, count, fp, tp), actual in zip(group, actuals):
+                if actual <= 0:
+                    continue
+                self.animation_snapshots.append({
+                    "event": {"tipo": tipo, "count": actual, "from": from_pos, "to": to_pos},
+                    "grid_during": grid_during,
+                    "grid_after": grid_after,
+                })
 
     def place_block(self, block, start_r, start_c):
         orientation = block["orientation"]
         plates = block["plates"]
 
+        # Se c'è ancora una torta completata pendente (il delay visivo non è ancora
+        # finito ma il giocatore ha già piazzato), rimuoviamo subito prima di procedere.
+        if self.plates_to_remove:
+            self.finalize_removals()
+
         self.last_animation_events = []
         self.animation_snapshots = []
         self.plates_to_remove = []
+        self._raw_events = []
+        self._visited_by_tipo = {}
 
         if orientation == "H":
             positions = [(start_r, start_c + i) for i in range(len(plates))]
@@ -226,14 +526,18 @@ class GameState:
             if self.grid[r][c] is not None:
                 return False
 
+        # Piazza i nuovi piatti
         placed_positions = []
         for (r, c), plate in zip(positions, plates):
             self.grid[r][c] = plate
             placed_positions.append((r, c))
 
+        # Snapshot pre-move: include i nuovi piatti appena piazzati
+        self._pre_move_grid = self.snapshot_grid_deep()
+
         tipi_coinvolti = {p.tipo for plate in plates for p in plate.pieces}
 
-        # 0a) SPLIT ATOMICO: risolvi coppie misto/misto adiacenti PRIMA di tutto
+        # 0a) SPLIT ATOMICO
         for (pr, pc) in placed_positions:
             for nr, nc in self.neighbors4(pr, pc):
                 if self._is_marked_to_remove((nr, nc)):
@@ -244,7 +548,7 @@ class GameState:
                     if plate and not plate.is_pure():
                         self._split_mixed_pair((pr, pc), (nr, nc), placed_positions)
 
-        # 0b) CALAMITA (solo se nuovo piatto è PURO)
+        # 0b) CALAMITA
         for (pr, pc) in placed_positions:
             self._magnet_new_pure_plate(pr, pc, placed_positions)
 
@@ -258,18 +562,26 @@ class GameState:
             self.chain_merge_from_type(tipo, placed_positions)
 
         self.resolve_groups()
+
+        # --- FIX: calcola score e plates_to_remove UNA SOLA VOLTA
+        # sulla griglia logica finale, prima di costruire gli snapshot visivi.
+        self.plates_to_remove = []
+        for r in range(self.rows):
+            for c in range(self.cols):
+                pl = self.grid[r][c]
+                if pl and pl.is_completed_pure(MAX_SLICES):
+                    self.plates_to_remove.append((r, c))
+                    self.score += 10
+
+        # Gli snapshot visivi vengono costruiti usando _visited_by_tipo
+        # che è stato popolato da _move_tipo durante i merge.
+        self._build_animation_snapshots(self._visited_by_tipo)
+
         return True
 
     # ---------------- MERGE DIRECTION RULE ----------------
 
     def _pick_target_source(self, pos_a, pos_b, tipo, placed_positions):
-        """
-        Direzione source->target:
-        - se uno è puro appena piazzato => target quello
-        - altrimenti se uno è puro => target quello
-        - altrimenti (misto/misto): preferisci target = appena piazzato (effetto calamita logico)
-        - altrimenti fallback: target = chi ha più count di quel tipo
-        """
         ra, ca = pos_a
         rb, cb = pos_b
         a = self.grid[ra][ca]
@@ -287,38 +599,28 @@ class GameState:
         a_new = pos_a in placed_positions
         b_new = pos_b in placed_positions
 
-        # 1) puro appena piazzato
         if a_pure and a_new and not (b_pure and b_new):
             return pos_a, pos_b
         if b_pure and b_new and not (a_pure and a_new):
             return pos_b, pos_a
-
-        # 2) puro pre-esistente
         if a_pure and not b_pure:
             return pos_a, pos_b
         if b_pure and not a_pure:
             return pos_b, pos_a
-
-        # 3) calamita logica (solo misto/misto)
         if not a_pure and not b_pure:
             if a_new and not b_new:
                 return pos_a, pos_b
             if b_new and not a_new:
                 return pos_b, pos_a
-
-        # 4) fallback: più count
         if pa.count > pb.count:
             return pos_a, pos_b
         if pb.count > pa.count:
             return pos_b, pos_a
-
-        # tie-break stabile
         if rb > ra or (rb == ra and cb > ca):
             return pos_b, pos_a
         return pos_a, pos_b
 
     def can_place_block(self, block, start_r, start_c):
-        """Controlla SOLO se il blocco entra e le celle sono libere (nessun merge)."""
         orientation = block["orientation"]
         plates = block["plates"]
 
@@ -337,11 +639,6 @@ class GameState:
         return True
 
     def _magnet_new_pure_plate(self, pr, pc, placed_positions):
-        """
-        Se il piatto appena piazzato è PURO, attrae dai vicini le fette dello stesso tipo.
-        NON tocca nessun vicino (puro o misto) che ha a sua volta altri vicini con
-        lo stesso tipo: quel piatto è un relay e va lasciato al chain_merge.
-        """
         plate = self.grid[pr][pc]
         if not plate:
             return
@@ -362,9 +659,6 @@ class GameState:
                 if not nplate or nplate.get_piece(tipo) is None:
                     continue
 
-                # Se il vicino (puro O misto) ha altri vicini con lo stesso tipo
-                # escluso il piatto corrente, è un relay verso altre celle:
-                # NON rubare le sue fette o si crea un gap che blocca il merge.
                 is_bridge = self._count_neighbors_with_tipo(nr, nc, tipo, exclude_pos=(pr, pc)) > 0
                 if is_bridge:
                     continue
@@ -375,10 +669,9 @@ class GameState:
 
     def _move_tipo(self, source_pos, target_pos, tipo):
         """
-        Sposta fette 'tipo' da source a target rispettando:
-        - cap totale 6 nel target
-        - cap tipo 6 nel target
-        - NON crea nuovi tipi in un piatto misto già esistente
+        Sposta fette da source a target. Registra solo l'evento grezzo in
+        _raw_events; gli snapshot visivi vengono costruiti dopo in
+        _build_animation_snapshots().
         """
         sr, sc = source_pos
         tr, tc = target_pos
@@ -393,14 +686,11 @@ class GameState:
         if not sp:
             return 0
 
-        # se target ha già il tipo, va bene
         if tp is None:
-            # se target è vuoto, crea il tipo
             if target.is_empty():
                 tp = Piece(tipo, 0)
                 target.pieces.append(tp)
             else:
-                # target ha altri tipi diversi, non possiamo aggiungere
                 return 0
 
         free_total = target.free_slots(MAX_SLICES)
@@ -412,44 +702,23 @@ class GameState:
 
         moved = source.remove(tipo, can_take)
         if moved > 0:
-            # ── grid_during ──────────────────────────────────────────────
-            # Stato da mostrare DURANTE il volo della fetta:
-            #   - source già svuotato (source.remove già chiamato sopra)
-            #   - target NON ancora aggiornato
-            # È esattamente lo stato corrente della griglia in questo momento.
-            snap_during = self.snapshot_grid_deep()
-
-            # ── applica al target ─────────────────────────────────────────
             self._add_anim_event(tipo, moved, (sr, sc), (tr, tc))
             target.add(tipo, moved)
 
             if source.is_empty():
                 self.grid[sr][sc] = None
 
-            completed = target.is_completed_pure(MAX_SLICES)
-            if completed:
-                if (tr, tc) not in self.plates_to_remove:
-                    self.plates_to_remove.append((tr, tc))
-                self.score += 10
-
-            # ── grid_after ───────────────────────────────────────────────
-            # Stato da applicare DOPO l'animazione:
-            #   - target aggiornato con le fette arrivate
-            #   - se la torta è completa, la cella è ancora visibile
-            #     (verrà rimossa solo dopo il delay in finalize_removals)
-            snap_after = self.snapshot_grid_deep()
-
-            evento = {"tipo": tipo, "count": moved, "from": (sr, sc), "to": (tr, tc)}
-            self.animation_snapshots.append({
-                "event":       evento,
-                "grid_during": snap_during,   # source vuoto, target invariato
-                "grid_after":  snap_after,    # target aggiornato
-            })
+            # Registra evento grezzo (snapshot costruito dopo)
+            self._raw_events.append((tipo, moved, (sr, sc), (tr, tc)))
+            # Aggiorna visited_by_tipo per il pathfinding
+            if tipo not in self._visited_by_tipo:
+                self._visited_by_tipo[tipo] = set()
+            self._visited_by_tipo[tipo].add((sr, sc))
+            self._visited_by_tipo[tipo].add((tr, tc))
 
         return moved
 
     def _count_neighbors_with_tipo(self, r, c, tipo, exclude_pos=None):
-        """Conta i vicini che hanno 'tipo', escludendo opzionalmente una posizione."""
         count = 0
         for nr, nc in self.neighbors4(r, c):
             if exclude_pos and (nr, nc) == exclude_pos:
@@ -462,13 +731,6 @@ class GameState:
         return count
 
     def _split_mixed_pair(self, pos_a, pos_b, placed_positions):
-        """
-        Gestisce il caso in cui due piatti misti adiacenti condividono gli stessi tipi.
-
-        IMPORTANTE: se uno dei due piatti (quello appena piazzato) ha altri vicini
-        con lo stesso tipo oltre all'altro piatto, deve fare da PONTE → non splittiamo
-        quel tipo, lo lasciamo per il bridge/chain merge.
-        """
         a = self.grid[pos_a[0]][pos_a[1]]
         b = self.grid[pos_b[0]][pos_b[1]]
         if not a or not b:
@@ -535,7 +797,6 @@ class GameState:
             bridge = self.grid[br][bc]
             if not bridge or bridge.get_piece(tipo) is None:
                 return
-
             if neighbor and not neighbor.is_pure() and bridge and not bridge.is_pure():
                 return
 
@@ -557,7 +818,6 @@ class GameState:
                 return False
             return pl.free_slots(MAX_SLICES) > 0 and (MAX_SLICES - tp.count) > 0
 
-        # ---------- MODALITÀ GATHER (preferita se c'è un puro) ----------
         pure_targets = [pos for pos in neigh if self.grid[pos[0]][pos[1]].is_pure() and can_receive(pos)]
         if pure_targets:
             target_pos = max(pure_targets, key=piece_count_at)
@@ -578,7 +838,6 @@ class GameState:
                         changed = True
             return
 
-        # ---------- MODALITÀ SPLIT (nessun puro disponibile) ----------
         neigh = [pos for pos in neigh if can_receive(pos)]
         if not neigh:
             return
@@ -606,19 +865,11 @@ class GameState:
                     changed = True
 
     def chain_merge_from_type(self, tipo, placed_positions):
-        # ---------------------------------------------------------------
-        # FIX: usa _full_component_of_type invece di _connected_component_of_type_from
-        # per raccogliere TUTTE le celle connesse con 'tipo', incluse quelle
-        # pre-esistenti sulla griglia (es. il V2 in (2,1) quando piazzo V in (0,1)+(1,1)).
-        # Senza questo, la catena su 3+ piatti veniva troncata perché active_cells
-        # non includeva le celle già presenti fuori da placed_positions.
-        # ---------------------------------------------------------------
         active_cells = self._full_component_of_type(placed_positions, tipo)
 
         if not active_cells:
             return
 
-        # --- FASE PRE-BRIDGE ---
         def bridge_priority(pos):
             pr, pc = pos
             plate = self.grid[pr][pc]
@@ -666,7 +917,6 @@ class GameState:
                 else:
                     mixed_neighbors.append((nr, nc))
 
-            # Caso 1: bridge tra misti e un puro
             if pure_neighbors:
                 def piece_count_at(pos):
                     pl = self.grid[pos[0]][pos[1]]
@@ -696,7 +946,6 @@ class GameState:
                         if moved2 > 0:
                             changed_inner = True
 
-            # Caso 2: bridge tra due puri, nessun misto
             elif len(pure_neighbors) >= 2:
                 def piece_count_at(pos):
                     pl = self.grid[pos[0]][pos[1]]
@@ -718,10 +967,8 @@ class GameState:
                         if moved2 > 0:
                             changed_inner = True
 
-            # Ricalcola active_cells includendo le celle pre-esistenti
             active_cells = self._full_component_of_type(placed_positions, tipo)
 
-        # --- MERGE A CATENA STANDARD ---
         changed = True
         while changed:
             changed = False
@@ -752,7 +999,6 @@ class GameState:
                     moved = self._move_tipo(source_pos, target_pos, tipo)
                     if moved > 0:
                         changed = True
-                        # Ricalcola usando _full_component_of_type per non perdere celle
                         active_cells = self._full_component_of_type(placed_positions, tipo)
                         break
 

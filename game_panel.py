@@ -321,29 +321,35 @@ class Game:
         """
         Chiamato quando l'animazione corrente finisce.
         Applica grid_after (target aggiornato), poi:
-          - se la torta è appena stata completata → attiva un delay visivo
-            prima di passare al prossimo step
+          - se siamo all'ultimo step E c'è una torta completata →
+            attiva il delay visivo prima di finalizzare
           - altrimenti → parte subito il prossimo step (o finalize se è l'ultimo)
+
+        FIX: il delay visivo viene attivato SOLO quando la coda è vuota,
+        garantendo che finalize_removals() venga sempre chiamata alla fine.
         """
         # Applica lo stato "dopo" dell'animazione appena conclusa
         if self._pending_grid_after is not None:
             self.display_grid = self._pending_grid_after
             self._pending_grid_after = None
 
-        # Controlla se in questo grid_after c'è una torta appena completata
-        # (cella ancora presente in display_grid ma in plates_to_remove)
-        has_completed = any(
-            self.display_grid is not None
-            and self.display_grid[r][c] is not None
-            for r, c in self.state.plates_to_remove
-        ) if self.display_grid is not None else False
+        # Controlla torta completata SOLO quando è l'ultimo step della coda
+        if not self.slice_queue:
+            has_completed = (
+                self.display_grid is not None
+                and any(
+                    self.display_grid[r][c] is not None
+                    for r, c in self.state.plates_to_remove
+                )
+            )
+            if has_completed:
+                # Ultima animazione + torta completa: aspetta prima di rimuovere
+                self._completed_cake_delay = 0.0
+                self.active_slice = None
+                return
 
-        if has_completed and not self.slice_queue:
-            # Ultima animazione + torta completa: aspetta un po' prima di rimuovere
-            self._completed_cake_delay = 0.0  # avvia timer
-            self.active_slice = None
-        else:
-            self._start_next_slice_or_finalize()
+        # Coda non vuota, oppure nessuna torta completata: avanza normalmente
+        self._start_next_slice_or_finalize()
 
     def _start_next_slice_or_finalize(self):
         if self.slice_queue:
