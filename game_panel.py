@@ -89,9 +89,10 @@ class Game:
         self.autoplay_delay = 1.0        # secondi tra una mossa e l'altra
         self.autoplay_timer = 0.0
 
-        self.button_autoplay = Button(x_pos_button, 100, w_button, h_button,
-                                      "Sprites/Button/button_quit.png")
-
+        self.button_autoplay = Button(320, 550, 250, 150,
+                                      "Sprites/Button/button_autoplay.png")
+        self.button_autoplay_off = Button(320, 550, 250, 150,
+                                      "Sprites/Button/button_autoplay_off.png")
 
     def _mark_option_used(self, opt_index):
         self.used_options.add(opt_index)
@@ -495,7 +496,10 @@ class Game:
 
         self.tavolo.draw(window)
         self.button_pause.draw(window)
-        self.button_autoplay.draw(window)
+        if self.autoplay:
+            self.button_autoplay_off.draw(window)
+        else:
+            self.button_autoplay.draw(window)
 
 
         for sp in self.sprites:
@@ -601,10 +605,12 @@ class Game:
         if event and event.type == pygame.MOUSEBUTTONDOWN:
             if self.button_pause.is_clicked(posizione_mouse):
                 return "pause_game"
-        if self.button_autoplay.is_clicked(posizione_mouse):
-            self.autoplay = not self.autoplay
-            self.autoplay_timer = 0.0
-            return None
+            if self.button_autoplay.is_clicked(posizione_mouse) or self.button_autoplay_on.is_clicked(posizione_mouse):
+                self.autoplay = not self.autoplay
+                self.autoplay_timer = 0.0
+                return None
+
+
 
         if event and event.type == pygame.KEYDOWN:
             if event.key == pygame.K_i:
