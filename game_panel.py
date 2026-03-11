@@ -605,7 +605,7 @@ class Game:
         if event and event.type == pygame.MOUSEBUTTONDOWN:
             if self.button_pause.is_clicked(posizione_mouse):
                 return "pause_game"
-            if self.button_autoplay.is_clicked(posizione_mouse) or self.button_autoplay_on.is_clicked(posizione_mouse):
+            if self.button_autoplay.is_clicked(posizione_mouse) or self.button_autoplay_off.is_clicked(posizione_mouse):
                 self.autoplay = not self.autoplay
                 self.autoplay_timer = 0.0
                 return None
