@@ -84,6 +84,15 @@ class Game:
         self.ai_anim_sprites = []
         self.ai_anim_duration = 0.75
         self.ai_game_over = False
+        # Autoplay
+        self.autoplay = False
+        self.autoplay_delay = 1.0        # secondi tra una mossa e l'altra
+        self.autoplay_timer = 0.0
+
+        self.button_autoplay = Button(320, 550, 250, 150,
+                                      "Sprites/Button/button_autoplay.png")
+        self.button_autoplay_off = Button(320, 550, 250, 150,
+                                      "Sprites/Button/button_autoplay_off.png")
 
     def _mark_option_used(self, opt_index):
         self.used_options.add(opt_index)
@@ -103,6 +112,35 @@ class Game:
             if oi not in self.used_options:
                 available.append((oi, opt))
         return available
+
+    def _do_ai_move(self):
+        """Esegue una singola mossa IA. Ritorna True se è partita, False se impossibile."""
+        if self.ai_animating:
+            return False
+
+        available = self._get_available_options()
+        if not available:
+            if self._all_options_used():
+                self.generate_options()
+                available = self._get_available_options()
+            if not available:
+                return False
+
+        available_opts = [opt for (oi, opt) in available]
+        available_indices = [oi for (oi, opt) in available]
+
+        move = self.ai_solver.choose_move(self.state, available_opts, debug=False)
+        if move is None:
+            return False
+
+        solver_oi, r, c = move
+        if solver_oi >= len(available_indices):
+            return False
+
+        real_oi = available_indices[solver_oi]
+        started = self._start_ai_drag(real_oi, r, c)
+        return started
+
 
     def _start_ai_drag(self, opt_index, start_r, start_c):
         group = [s for s in self.sprites if s.opt_index == opt_index and s.visible]
@@ -443,6 +481,15 @@ class Game:
                     finished_all = False
             if finished_all:
                 self._finish_ai_drop()
+        # ---- AUTOPLAY ----
+        if self.autoplay and not self.ai_animating and self.active_slice is None and self._completed_cake_delay is None:
+            self.autoplay_timer += dt
+            if self.autoplay_timer >= self.autoplay_delay:
+                self.autoplay_timer = 0.0
+                moved = self._do_ai_move()
+                if not moved:
+                    self.autoplay = False  # nessuna mossa possibile, disattiva
+
 
         self.last_time = now
 
@@ -455,6 +502,11 @@ class Game:
 
         self.tavolo.draw(window)
         self.button_pause.draw(window)
+        if self.autoplay:
+            self.button_autoplay_off.draw(window)
+        else:
+            self.button_autoplay.draw(window)
+
 
         for sp in self.sprites:
             sp.draw(window, dt)
@@ -559,6 +611,12 @@ class Game:
         if event and event.type == pygame.MOUSEBUTTONDOWN:
             if self.button_pause.is_clicked(posizione_mouse):
                 return "pause_game"
+            if self.button_autoplay.is_clicked(posizione_mouse) or self.button_autoplay_off.is_clicked(posizione_mouse):
+                self.autoplay = not self.autoplay
+                self.autoplay_timer = 0.0
+                return None
+
+
 
         if event and event.type == pygame.KEYDOWN:
             if event.key == pygame.K_i:

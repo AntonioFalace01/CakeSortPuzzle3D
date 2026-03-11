@@ -548,7 +548,7 @@ class GameState:
                     if plate and not plate.is_pure():
                         self._split_mixed_pair((pr, pc), (nr, nc), placed_positions)
 
-        # 0b) CALAMITA
+        # 0b) CALAMITA (solo se nuovo piatto è PURO)
         for (pr, pc) in placed_positions:
             self._magnet_new_pure_plate(pr, pc, placed_positions)
 
@@ -582,6 +582,13 @@ class GameState:
     # ---------------- MERGE DIRECTION RULE ----------------
 
     def _pick_target_source(self, pos_a, pos_b, tipo, placed_positions):
+        """
+        Direzione source->target:
+        - se uno è puro appena piazzato => target quello
+        - altrimenti se uno è puro => target quello
+        - altrimenti (misto/misto): preferisci target = appena piazzato (effetto calamita logico)
+        - altrimenti fallback: target = chi ha più count di quel tipo
+        """
         ra, ca = pos_a
         rb, cb = pos_b
         a = self.grid[ra][ca]
@@ -599,28 +606,38 @@ class GameState:
         a_new = pos_a in placed_positions
         b_new = pos_b in placed_positions
 
+        # 1) puro appena piazzato
         if a_pure and a_new and not (b_pure and b_new):
             return pos_a, pos_b
         if b_pure and b_new and not (a_pure and a_new):
             return pos_b, pos_a
+
+        # 2) puro pre-esistente
         if a_pure and not b_pure:
             return pos_a, pos_b
         if b_pure and not a_pure:
             return pos_b, pos_a
+
+        # 3) calamita logica (solo misto/misto)
         if not a_pure and not b_pure:
             if a_new and not b_new:
                 return pos_a, pos_b
             if b_new and not a_new:
                 return pos_b, pos_a
+
+        # 4) fallback: più count
         if pa.count > pb.count:
             return pos_a, pos_b
         if pb.count > pa.count:
             return pos_b, pos_a
+
+        # tie-break stabile
         if rb > ra or (rb == ra and cb > ca):
             return pos_b, pos_a
         return pos_a, pos_b
 
     def can_place_block(self, block, start_r, start_c):
+        """Controlla SOLO se il blocco entra e le celle sono libere (nessun merge)."""
         orientation = block["orientation"]
         plates = block["plates"]
 
@@ -639,6 +656,11 @@ class GameState:
         return True
 
     def _magnet_new_pure_plate(self, pr, pc, placed_positions):
+        """
+        Se il piatto appena piazzato è PURO, attrae dai vicini le fette dello stesso tipo.
+        NON tocca nessun vicino (puro o misto) che ha a sua volta altri vicini con
+        lo stesso tipo: quel piatto è un relay e va lasciato al chain_merge.
+        """
         plate = self.grid[pr][pc]
         if not plate:
             return
@@ -659,6 +681,9 @@ class GameState:
                 if not nplate or nplate.get_piece(tipo) is None:
                     continue
 
+                # Se il vicino (puro O misto) ha altri vicini con lo stesso tipo
+                # escluso il piatto corrente, è un relay verso altre celle:
+                # NON rubare le sue fette o si crea un gap che blocca il merge.
                 is_bridge = self._count_neighbors_with_tipo(nr, nc, tipo, exclude_pos=(pr, pc)) > 0
                 if is_bridge:
                     continue
@@ -686,11 +711,14 @@ class GameState:
         if not sp:
             return 0
 
+        # se target ha già il tipo, va bene
         if tp is None:
+            # se target è vuoto, crea il tipo
             if target.is_empty():
                 tp = Piece(tipo, 0)
                 target.pieces.append(tp)
             else:
+                # target ha altri tipi diversi, non possiamo aggiungere
                 return 0
 
         free_total = target.free_slots(MAX_SLICES)
@@ -719,6 +747,7 @@ class GameState:
         return moved
 
     def _count_neighbors_with_tipo(self, r, c, tipo, exclude_pos=None):
+        """Conta i vicini che hanno 'tipo', escludendo opzionalmente una posizione."""
         count = 0
         for nr, nc in self.neighbors4(r, c):
             if exclude_pos and (nr, nc) == exclude_pos:
@@ -731,6 +760,13 @@ class GameState:
         return count
 
     def _split_mixed_pair(self, pos_a, pos_b, placed_positions):
+        """
+        Gestisce il caso in cui due piatti misti adiacenti condividono gli stessi tipi.
+
+        IMPORTANTE: se uno dei due piatti (quello appena piazzato) ha altri vicini
+        con lo stesso tipo oltre all'altro piatto, deve fare da PONTE → non splittiamo
+        quel tipo, lo lasciamo per il bridge/chain merge.
+        """
         a = self.grid[pos_a[0]][pos_a[1]]
         b = self.grid[pos_b[0]][pos_b[1]]
         if not a or not b:
@@ -797,6 +833,7 @@ class GameState:
             bridge = self.grid[br][bc]
             if not bridge or bridge.get_piece(tipo) is None:
                 return
+
             if neighbor and not neighbor.is_pure() and bridge and not bridge.is_pure():
                 return
 
@@ -818,6 +855,7 @@ class GameState:
                 return False
             return pl.free_slots(MAX_SLICES) > 0 and (MAX_SLICES - tp.count) > 0
 
+        # ---------- MODALITÀ GATHER (preferita se c'è un puro) ----------
         pure_targets = [pos for pos in neigh if self.grid[pos[0]][pos[1]].is_pure() and can_receive(pos)]
         if pure_targets:
             target_pos = max(pure_targets, key=piece_count_at)
@@ -838,6 +876,7 @@ class GameState:
                         changed = True
             return
 
+        # ---------- MODALITÀ SPLIT (nessun puro disponibile) ----------
         neigh = [pos for pos in neigh if can_receive(pos)]
         if not neigh:
             return
@@ -865,11 +904,19 @@ class GameState:
                     changed = True
 
     def chain_merge_from_type(self, tipo, placed_positions):
+        # ---------------------------------------------------------------
+        # FIX: usa _full_component_of_type invece di _connected_component_of_type_from
+        # per raccogliere TUTTE le celle connesse con 'tipo', incluse quelle
+        # pre-esistenti sulla griglia (es. il V2 in (2,1) quando piazzo V in (0,1)+(1,1)).
+        # Senza questo, la catena su 3+ piatti veniva troncata perché active_cells
+        # non includeva le celle già presenti fuori da placed_positions.
+        # ---------------------------------------------------------------
         active_cells = self._full_component_of_type(placed_positions, tipo)
 
         if not active_cells:
             return
 
+        # --- FASE PRE-BRIDGE ---
         def bridge_priority(pos):
             pr, pc = pos
             plate = self.grid[pr][pc]
@@ -917,6 +964,7 @@ class GameState:
                 else:
                     mixed_neighbors.append((nr, nc))
 
+            # Caso 1: bridge tra misti e un puro
             if pure_neighbors:
                 def piece_count_at(pos):
                     pl = self.grid[pos[0]][pos[1]]
@@ -946,6 +994,7 @@ class GameState:
                         if moved2 > 0:
                             changed_inner = True
 
+            # Caso 2: bridge tra due puri, nessun misto
             elif len(pure_neighbors) >= 2:
                 def piece_count_at(pos):
                     pl = self.grid[pos[0]][pos[1]]
@@ -967,8 +1016,10 @@ class GameState:
                         if moved2 > 0:
                             changed_inner = True
 
+            # Ricalcola active_cells includendo le celle pre-esistenti
             active_cells = self._full_component_of_type(placed_positions, tipo)
 
+        # --- MERGE A CATENA STANDARD ---
         changed = True
         while changed:
             changed = False
@@ -999,6 +1050,7 @@ class GameState:
                     moved = self._move_tipo(source_pos, target_pos, tipo)
                     if moved > 0:
                         changed = True
+                        # Ricalcola usando _full_component_of_type per non perdere celle
                         active_cells = self._full_component_of_type(placed_positions, tipo)
                         break
 

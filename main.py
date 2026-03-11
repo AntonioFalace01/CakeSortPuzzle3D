@@ -1,6 +1,7 @@
 import  pygame
 
 import assets
+from button import Button
 from game_panel import Game
 from menu_start import MenuStart, MenuPause
 from particelle import GestoreParticelle
@@ -42,6 +43,7 @@ def main(window):
     menu_start = MenuStart()
     game_panel= Game()
     menu_pause = MenuPause()
+    button_restart = Button(345, 350, 220, 120, "Sprites/Button/button_restart.png")
 
     particelle = GestoreParticelle(60, 700, 500)
     sound = SoundManager()
@@ -101,6 +103,14 @@ def main(window):
                     else:
                         stato = "menu_start"
 
+            elif stato == "game_over":
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    mouse_pos = event.pos
+                    if button_restart.is_clicked(mouse_pos):
+                        game_panel = Game()
+                        stato = "game"
+
+
         if stato == "menu_start":
             window.blit(sfondo_menu_start,(0,0))
             particelle.update_and_draw(window)
@@ -120,6 +130,7 @@ def main(window):
 
         elif stato == "game_over":
             window.blit(sfondo_game_over, (0, 0))
+            button_restart.draw(window)
 
         pygame.display.update()
 
