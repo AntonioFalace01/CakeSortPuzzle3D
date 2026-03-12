@@ -2,7 +2,7 @@ import pygame
 
 class ScoreBar:
     def __init__(self, x, y, width, height, image_path="Sprites/barra.png",
-                 font_path="Font/Milk Cake.otf", font_size=24):
+                 font_path="Font/Super Bubble.ttf", font_size=20):
         self.rect = pygame.Rect(x, y, width, height)
 
         try:
@@ -37,7 +37,7 @@ class ScoreBar:
             print("Errore caricamento font ScoreBar:", e)
             self.font = pygame.font.SysFont("Arial", font_size, bold=True)
 
-        self.text_color = (255, 255, 255)
+        self.text_color = (0, 0, 0)
 
         self.current = 0
         self.target = 100
@@ -68,6 +68,11 @@ class ScoreBar:
         pygame.draw.rect(window, self.fill_color, fill_rect, border_radius=self.border_radius)
         window.set_clip(prev_clip)
 
-        txt = f"{label}: {min(self.current, self.target)}/{self.target}"
+        if self.current >= self.target and self.current == self.target:
+            # Tutte sbloccate: mostra solo il punteggio
+            txt = f"{label}"
+        else:
+            txt = f"{label}: {min(self.current, self.target)}/{self.target}"
+
         surf = self.font.render(txt, True, self.text_color)
         window.blit(surf, (self.rect.centerx - surf.get_width() // 2, self.inner_rect.y - 40))

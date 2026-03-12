@@ -19,19 +19,21 @@ class UnlockManager:
         return None
 
     def add_score(self, amount):
-        #Aggiorna punteggio cumulativo e ritorna True se si sblocca una nuova torta
         if amount <= 0:
             return False
         self.total_score += amount
         threshold = self.get_next_threshold()
         if threshold is not None and self.total_score >= threshold:
-            # sblocca una nuova torta
-            next_type = self.all_types_ordered[self.unlocked_count]  # prendi il prossimo tipo
+            next_type = self.all_types_ordered[self.unlocked_count]
             self.active_types.add(next_type)
             self.unlocked_count += 1
             self.next_unlock_index += 1
             return True
         return False
+
+    def all_unlocked(self):
+        return self.unlocked_count >= len(self.all_types_ordered)
+
 
     def is_type_active(self, t):
         return t in self.active_types
