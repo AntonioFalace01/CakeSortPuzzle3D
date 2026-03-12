@@ -153,7 +153,7 @@ class SFX:
         cls.pickup = pygame.mixer.Sound("Audio/pickup.wav")
         cls.place = pygame.mixer.Sound("Audio/place.wav")
         cls.spawn = pygame.mixer.Sound("Audio/spawn.wav")
-        cls.complete = pygame.mixer.Sound("Audio/complete.mp3")
+        cls.complete = pygame.mixer.Sound("Audio/complete.wav")
         cls.spawn.set_volume(0.6)
         cls.pickup.set_volume(0.7)
         cls.place.set_volume(0.7)
