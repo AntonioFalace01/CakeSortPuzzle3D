@@ -11,6 +11,7 @@ import os
 from ai.asp_solver import CakeSortASPSolver
 from cake_completion_effect import CakeCompletionEffect
 from floating_score import FloatingScore
+from unlock_effect import UnlockEffect
 
 
 class Game:
@@ -78,6 +79,8 @@ class Game:
         self.COMPLETED_CAKE_DELAY = 0.7    # durata pausa visiva torta completa
         self.completion_effects: list[CakeCompletionEffect] = []
         self.floating_scores: list[FloatingScore] = []
+        self.unlock_effect: UnlockEffect | None = None
+        self._pending_unlock_tipo = None  # tipo torta da mostrare dopo le animazioni
 
         self.generate_options()
         BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -401,6 +404,10 @@ class Game:
             self.display_grid = None
             self._pending_grid_after = None
             self.state.finalize_removals()
+        # Se c'è uno sblocco in attesa, ora che le animazioni sono finite lo mostriamo
+        if self._pending_unlock_tipo is not None:
+            self.unlock_effect = UnlockEffect(900, 700, self._pending_unlock_tipo)
+            self._pending_unlock_tipo = None
 
     # ------------------------------------------------------------------
     # HELPERS LAYOUT
@@ -566,6 +573,13 @@ class Game:
             if not fs.alive:
                 self.floating_scores.remove(fs)
 
+        # --- Effetto sblocco nuova torta (sopra tutto) ---
+        if self.unlock_effect is not None:
+            self.unlock_effect.update(dt)
+            self.unlock_effect.draw(window)
+            if self.unlock_effect.is_done():
+                self.unlock_effect = None
+
         self.score_bar.update(dt)
 
         if self.unlock.all_unlocked():
@@ -639,10 +653,13 @@ class Game:
     def _handle_score_unlocks(self, prev_score, new_score):
         delta = max(0, new_score - prev_score)
         if delta > 0:
+            next_tipo = None
+            if not self.unlock.all_unlocked():
+                next_tipo = self.unlock.all_types_ordered[self.unlock.unlocked_count]
+
             unlocked = self.unlock.add_score(delta)
 
             if self.unlock.all_unlocked():
-                # tutte sbloccate: la barra mostra il punteggio totale che cresce
                 self.score_bar.set_progress(self.unlock.total_score, self.unlock.total_score)
             else:
                 next_thr = self.unlock.get_next_threshold()
@@ -650,9 +667,9 @@ class Game:
                     next_thr = 1
                 self.score_bar.set_progress(self.unlock.total_score, next_thr)
 
-            if unlocked:
+            if unlocked and next_tipo is not None:
+                self._pending_unlock_tipo = next_tipo  # verrà mostrato dopo le animazioni
                 self.generate_options()
-                # se era l'ultima torta sbloccata, mostra il messaggio
                 if self.unlock.all_unlocked():
                     self.show_all_unlocked = True
                     self.all_unlocked_timer = 0.0
