@@ -9,6 +9,8 @@ from assets import Assets, UnlockManager
 from sound_manager import SFX
 import os
 from ai.asp_solver import CakeSortASPSolver
+from cake_completion_effect import CakeCompletionEffect
+from floating_score import FloatingScore
 
 
 class Game:
@@ -73,7 +75,9 @@ class Game:
         self.display_grid = None  # None = usa self.state.grid direttamente
         self._pending_grid_after = None
         self._completed_cake_delay = None   # secondi trascorsi nel delay torta, None = inattivo
-        self.COMPLETED_CAKE_DELAY = 0.5    # durata pausa visiva torta completa
+        self.COMPLETED_CAKE_DELAY = 0.7    # durata pausa visiva torta completa
+        self.completion_effects: list[CakeCompletionEffect] = []
+        self.floating_scores: list[FloatingScore] = []
 
         self.generate_options()
         BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -354,39 +358,32 @@ class Game:
 
         # Timer per il delay della torta completata (None = nessuna torta da aspettare)
         self._completed_cake_delay = None
+        self.completion_effects = []
 
     def _advance_slice_queue(self):
-        """
-        Chiamato quando l'animazione corrente finisce.
-        Applica grid_after (target aggiornato), poi:
-          - se siamo all'ultimo step E c'è una torta completata →
-            attiva il delay visivo prima di finalizzare
-          - altrimenti → parte subito il prossimo step (o finalize se è l'ultimo)
-
-        FIX: il delay visivo viene attivato SOLO quando la coda è vuota,
-        garantendo che finalize_removals() venga sempre chiamata alla fine.
-        """
-        # Applica lo stato "dopo" dell'animazione appena conclusa
         if self._pending_grid_after is not None:
             self.display_grid = self._pending_grid_after
             self._pending_grid_after = None
 
-        # Controlla torta completata SOLO quando è l'ultimo step della coda
         if not self.slice_queue:
             has_completed = (
-                self.display_grid is not None
-                and any(
-                    self.display_grid[r][c] is not None
-                    for r, c in self.state.plates_to_remove
-                )
+                    self.display_grid is not None
+                    and any(
+                self.display_grid[r][c] is not None
+                for r, c in self.state.plates_to_remove
+            )
             )
             if has_completed:
-                # Ultima animazione + torta completa: aspetta prima di rimuovere
                 self._completed_cake_delay = 0.0
                 self.active_slice = None
+                SFX.complete.play()
+                for (r, c) in self.state.plates_to_remove:
+                    cx, cy = self._cell_center(r, c)
+                    eff = CakeCompletionEffect(cx, cy, plate_size=self.tavolo.larg_cella)
+                    self.completion_effects.append(eff)
+                    self.floating_scores.append(FloatingScore(cx, cy - 20))
                 return
 
-        # Coda non vuota, oppure nessuna torta completata: avanza normalmente
         self._start_next_slice_or_finalize()
 
     def _start_next_slice_or_finalize(self):
@@ -539,11 +536,31 @@ class Game:
             if not self.active_slice.alive:
                 self._advance_slice_queue()
         elif self._completed_cake_delay is not None:
-            # Pausa visiva: la torta completa è visibile, aspettiamo prima di rimuoverla
             self._completed_cake_delay += dt
+            # Aggiorna e disegna il pulse degli effetti
+            for eff in self.completion_effects:
+                eff.update_pulse(dt)
+            for eff in self.completion_effects:
+                eff.draw_pulse(window)
             if self._completed_cake_delay >= self.COMPLETED_CAKE_DELAY:
+                # Scatta il burst su tutti gli effetti
+                for eff in self.completion_effects:
+                    eff.trigger_burst()
                 self._completed_cake_delay = None
                 self._start_next_slice_or_finalize()
+
+        # Aggiorna e disegna i burst (sopra a tutto)
+        for eff in list(self.completion_effects):
+            eff.update_burst(dt)
+            eff.draw_burst(window)
+            if eff.is_done():
+                self.completion_effects.remove(eff)
+
+        for fs in list(self.floating_scores):
+            fs.update(dt)
+            fs.draw(window)
+            if not fs.alive:
+                self.floating_scores.remove(fs)
 
         self.score_bar.update(dt)
         label = "Prossima torta" if self.unlock.get_next_threshold() is not None else "Tutte sbloccate"
