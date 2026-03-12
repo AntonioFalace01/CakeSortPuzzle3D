@@ -58,9 +58,6 @@ ext_neigh(O,R,C,Rn,Cn) :- neigh_of(O,R,C,_,_,Rn,Cn), not covers(O,R,C,Rn,Cn).
 type_in_plate(O,P,T) :- opt_piece(O,P,T,K), K > 0.
 type_in_opt(O,T)     :- type_in_plate(O,_,T).
 
-% Conteggio fette per tipo in un piatto dell'opzione
-slices_in_plate(O,P,T,K) :- opt_piece(O,P,T,K), K > 0.
-
 % Opzione pura (un solo tipo in tutto il blocco)
 two_types_in_opt(O) :- type_in_opt(O,T1), type_in_opt(O,T2), T1 != T2.
 pure_opt(O)         :- opt(O), not two_types_in_opt(O).
@@ -151,12 +148,6 @@ touches_pure_same(O,R,C,T) :-
     neighbor_pure_type(Rn,Cn,T).
 
 has_pure_touch(O,R,C) :- touches_pure_same(O,R,C,_).
-
-pure_touch_count(O,R,C,N) :-
-    choose(O,R,C),
-    N = #count{T,Rn,Cn : touches_pure_same(O,R,C,T),
-               neigh_of(O,R,C,_,_,Rn,Cn),
-               neighbor_pure_type(Rn,Cn,T)}.
 
 % =============================================================
 % EURISTICA 5 — Non bloccare: celle libere rimaste dopo la mossa

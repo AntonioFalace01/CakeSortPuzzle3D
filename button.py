@@ -50,7 +50,6 @@ class Button:
             else:
                 #disegna immagine normale
                 window.blit(self.image_normal, self.rect_disegno)
-        click_rect = self.rect_disegno if self.use_full_hitbox else self.rect
 
 
     def is_clicked(self, posizione_mouse):

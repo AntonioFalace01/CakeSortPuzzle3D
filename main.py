@@ -3,7 +3,7 @@ import  pygame
 import assets
 from button import Button
 from game_panel import Game
-from menu_start import MenuStart, MenuPause
+from menu_start import MenuPause
 from particelle import GestoreParticelle
 from menu_start import MenuStart
 from sound_manager import SoundManager
@@ -40,6 +40,7 @@ def main(window):
 
     run = True
     stato = "menu_start"
+    settings_origin = "menu_start"
     menu_start = MenuStart()
     game_panel= Game()
     menu_pause = MenuPause()

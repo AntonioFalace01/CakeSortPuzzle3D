@@ -8,7 +8,6 @@ class MenuStart:
         x_pos_button = 345
         w_button = 220
         h_button = 120
-        self.table = Table(100,100)
         self.button_start= Button(x_pos_button, 300, w_button, h_button, "Sprites/Button/button_start.png")
         self.button_settings = Button(x_pos_button, 380, w_button, h_button, "Sprites/Button/button_settings.png")
         self.button_quit = Button(x_pos_button, 460, w_button, h_button, "Sprites/Button/button_quit.png")

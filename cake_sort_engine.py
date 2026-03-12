@@ -1,5 +1,4 @@
 import random
-from sound_manager import SFX
 
 MAX_SLICES = 6
 
