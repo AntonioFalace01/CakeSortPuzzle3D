@@ -37,7 +37,7 @@ class ScoreBar:
             print("Errore caricamento font ScoreBar:", e)
             self.font = pygame.font.SysFont("Arial", font_size, bold=True)
 
-        self.text_color = (0, 0, 0)
+        self.text_color = (255, 255, 255)
 
         self.current = 0
         self.target = 100
@@ -69,10 +69,17 @@ class ScoreBar:
         window.set_clip(prev_clip)
 
         if self.current >= self.target and self.current == self.target:
-            # Tutte sbloccate: mostra solo il punteggio
             txt = f"{label}"
         else:
             txt = f"{label}: {min(self.current, self.target)}/{self.target}"
 
+        tx = self.rect.centerx - self.font.size(txt)[0] // 2
+        ty = self.inner_rect.y - 40
+
+        # Ombra scura per contrasto
+        shadow = self.font.render(txt, True, (40, 20, 30))
+        window.blit(shadow, (tx + 4, ty + 4))
+
+        # Testo principale
         surf = self.font.render(txt, True, self.text_color)
-        window.blit(surf, (self.rect.centerx - surf.get_width() // 2, self.inner_rect.y - 40))
+        window.blit(surf, (tx, ty))
