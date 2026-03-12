@@ -88,6 +88,10 @@ class Game:
         self.ai_anim_sprites = []
         self.ai_anim_duration = 0.75
         self.ai_game_over = False
+        self.show_all_unlocked = False
+        self.all_unlocked_timer = 0.0
+        self.ALL_UNLOCKED_DURATION = 3.0  # secondi visibile
+
         # Autoplay
         self.autoplay = False
         self.autoplay_delay = 1.0        # secondi tra una mossa e l'altra
@@ -563,8 +567,62 @@ class Game:
                 self.floating_scores.remove(fs)
 
         self.score_bar.update(dt)
-        label = "Prossima torta" if self.unlock.get_next_threshold() is not None else "Tutte sbloccate"
+
+        if self.unlock.all_unlocked():
+            label = f"Punteggio: {self.unlock.total_score}"
+        else:
+            label = "Prossima torta"
         self.score_bar.draw(window, label=label)
+
+        # ---- Popup "Tutte le torte sbloccate!" ----
+        if self.show_all_unlocked:
+            self.all_unlocked_timer += dt
+            if self.all_unlocked_timer < self.ALL_UNLOCKED_DURATION:
+                self._draw_all_unlocked_popup(window)
+            else:
+                self.show_all_unlocked = False
+
+    def _draw_all_unlocked_popup(self, window):
+        # Sfondo semi-trasparente
+        overlay = pygame.Surface((900, 700), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 120))
+        window.blit(overlay, (0, 0))
+
+        # Riquadro centrale
+        box_w, box_h = 500, 180
+        box_x = (900 - box_w) // 2
+        box_y = (700 - box_h) // 2
+
+        pygame.draw.rect(window, (255, 220, 240), (box_x, box_y, box_w, box_h), border_radius=20)
+        pygame.draw.rect(window, (200, 100, 150), (box_x, box_y, box_w, box_h), width=4, border_radius=20)
+
+        # Testo
+        try:
+            font_big = pygame.font.Font("Font/Milk Cake.otf", 36)
+            font_small = pygame.font.Font("Font/Milk Cake.otf", 22)
+        except:
+            font_big = pygame.font.SysFont("Arial", 36, bold=True)
+            font_small = pygame.font.SysFont("Arial", 22)
+
+        # Animazione fade: appare e poi scompare
+        progress = self.all_unlocked_timer / self.ALL_UNLOCKED_DURATION
+        if progress < 0.2:
+            alpha = int(255 * (progress / 0.2))
+        elif progress > 0.8:
+            alpha = int(255 * ((1.0 - progress) / 0.2))
+        else:
+            alpha = 255
+
+        line1 = font_big.render("Tutte le torte sbloccate!", True, (180, 50, 100))
+        line2 = font_small.render("Continua a giocare per aumentare il punteggio!", True, (120, 60, 90))
+
+        line1.set_alpha(alpha)
+        line2.set_alpha(alpha)
+
+        window.blit(line1, (450 - line1.get_width() // 2, box_y + 40))
+        window.blit(line2, (450 - line2.get_width() // 2, box_y + 110))
+
+
 
     def _cell_topleft(self, r, c):
         cx = self.tavolo.x + self.tavolo.padding + c * self.tavolo.larg_cella
@@ -582,18 +640,29 @@ class Game:
         delta = max(0, new_score - prev_score)
         if delta > 0:
             unlocked = self.unlock.add_score(delta)
-            next_thr = self.unlock.get_next_threshold()
-            if next_thr is None:
-                next_thr = 1
-            self.score_bar.set_progress(self.unlock.total_score, next_thr)
+
+            if self.unlock.all_unlocked():
+                # tutte sbloccate: la barra mostra il punteggio totale che cresce
+                self.score_bar.set_progress(self.unlock.total_score, self.unlock.total_score)
+            else:
+                next_thr = self.unlock.get_next_threshold()
+                if next_thr is None:
+                    next_thr = 1
+                self.score_bar.set_progress(self.unlock.total_score, next_thr)
+
             if unlocked:
                 self.generate_options()
+                # se era l'ultima torta sbloccata, mostra il messaggio
+                if self.unlock.all_unlocked():
+                    self.show_all_unlocked = True
+                    self.all_unlocked_timer = 0.0
 
         for sp in self.sprites:
             if sp.placed and sp.placed_cell:
                 r, c = sp.placed_cell
                 if self.state.grid[r][c] is None:
                     sp.visible = False
+
 
     def _block_cells_for_drop(self, opt, drop_r, drop_c, dragged_plate_index):
         orient = opt["orientation"]

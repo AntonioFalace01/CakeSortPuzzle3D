@@ -200,10 +200,6 @@ class CakeSortASPSolver:
         return best
 
     def _evaluate_move(self, state, current_options, move):
-        """
-        Valuta una mossa (oi, r, c) con un punteggio numerico.
-        Più alto = meglio.
-        """
         oi, r, c = move
         if oi >= len(current_options):
             return -1
@@ -223,14 +219,41 @@ class CakeSortASPSolver:
         else:
             positions = [(r, c)]
 
-        # Tipi portati dall'opzione
+        # ---- Calcolo pressione griglia ----
+        total_cells = state.rows * state.cols
+        occupied = sum(1 for rr in range(state.rows) for cc in range(state.cols) if state.grid[rr][cc] is not None)
+        free_cells = total_cells - occupied
+        occupancy_ratio = occupied / total_cells
+
+        # Quante celle libere restano DOPO questa mossa (senza contare merge)
+        new_plates_count = len(positions)
+        free_after = free_cells - new_plates_count
+
+        # ---- Penalità sopravvivenza ----
+        if free_after <= 2:
+            score -= 200  # quasi game over, fortissima penalità
+        elif free_after <= 4:
+            score -= 80
+        elif free_after <= 6:
+            score -= 30
+
+        # Bonus sopravvivenza: se la griglia è sotto pressione,
+        # premiare mosse che possono liberare spazio (completamenti)
+        pressure_bonus = 0
+        if occupancy_ratio >= 0.6:
+            pressure_bonus = 30
+        if occupancy_ratio >= 0.75:
+            pressure_bonus = 60
+
+        # ---- Tipi portati dall'opzione ----
         types_brought = {}
         for pi, plate_obj in enumerate(plates):
             for piece in plate_obj.pieces:
                 if piece.count > 0:
                     types_brought[piece.tipo] = types_brought.get(piece.tipo, 0) + piece.count
 
-        # Controlla vicini per ogni posizione piazzata
+        # ---- Controlla vicini ----
+        can_complete_any = False
         for idx, (pr, pc) in enumerate(positions):
             plate_obj = plates[idx] if idx < len(plates) else plates[0]
 
@@ -248,35 +271,38 @@ class CakeSortASPSolver:
                 for piece in plate_obj.pieces:
                     np = neighbor.get_piece(piece.tipo)
                     if np is not None:
-                        # Match tipo! Grande bonus
-                        score += 30
+                        score += 30  # match tipo
 
                         total = np.count + piece.count
-                        # Bonus se si avvicina a 6
                         if total >= 6:
-                            score += 100  # Completamento!
+                            score += 100 + pressure_bonus  # completamento + bonus pressione
+                            can_complete_any = True
                         elif total >= 4:
                             score += 40
                         elif total >= 3:
                             score += 15
 
-                        # Bonus se vicino è puro
                         if neighbor.is_pure():
                             score += 25
 
-                        # Bonus se piatto portato è puro
                         if len(plate_obj.pieces) == 1:
                             score += 15
 
-        # Penalizza opzioni miste
-        if len(types_brought) == 1:
-            score += 10  # bonus puro
+        # Se la griglia è sotto pressione e NON completi niente, penalizza
+        if occupancy_ratio >= 0.6 and not can_complete_any:
+            score -= 25
+        if occupancy_ratio >= 0.75 and not can_complete_any:
+            score -= 50
 
-        # Bonus per più fette (opzioni grosse)
+        # ---- Opzione pura ----
+        if len(types_brought) == 1:
+            score += 10
+
+        # ---- Bonus fette ----
         total_slices = sum(types_brought.values())
         score += total_slices * 2
 
-        # Penalizza posizioni isolate
+        # ---- Isolamento ----
         has_any_neighbor = False
         for pr, pc in positions:
             for dr, dc in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
@@ -291,16 +317,10 @@ class CakeSortASPSolver:
             if has_any_neighbor:
                 break
 
-        # Se la griglia non è vuota e ci isoliamo, penalizza
-        grid_has_plates = any(
-            state.grid[rr][cc] is not None
-            for rr in range(state.rows)
-            for cc in range(state.cols)
-        )
-        if grid_has_plates and not has_any_neighbor:
+        if occupied > 0 and not has_any_neighbor:
             score -= 20
 
-        # Bonus centralità
+        # ---- Centralità ----
         center_r = state.rows / 2.0
         center_c = state.cols / 2.0
         for pr, pc in positions:
@@ -310,7 +330,34 @@ class CakeSortASPSolver:
             elif dist <= 2.5:
                 score += 2
 
+        # ---- Bonus: mossa che mantiene spazio per blocchi doppi ----
+        # Controlla se dopo la mossa ci sono ancora coppie di celle adiacenti libere
+        occupied_set = set()
+        for rr in range(state.rows):
+            for cc in range(state.cols):
+                if state.grid[rr][cc] is not None:
+                    occupied_set.add((rr, cc))
+        for pos in positions:
+            occupied_set.add(pos)
+
+        double_slots = 0
+        for rr in range(state.rows):
+            for cc in range(state.cols):
+                if (rr, cc) not in occupied_set:
+                    # controlla H
+                    if cc + 1 < state.cols and (rr, cc + 1) not in occupied_set:
+                        double_slots += 1
+                    # controlla V
+                    if rr + 1 < state.rows and (rr + 1, cc) not in occupied_set:
+                        double_slots += 1
+
+        if double_slots == 0 and free_after > 1:
+            score -= 40  # nessun posto per blocchi doppi = rischio game over
+        elif double_slots <= 2:
+            score -= 15
+
         return score
+
 
     def _fallback_smart(self, state, current_options):
         """

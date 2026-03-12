@@ -2,7 +2,7 @@ import pygame
 
 class ScoreBar:
     def __init__(self, x, y, width, height, image_path="Sprites/barra.png",
-                 font_path="Font/Milk Cake.otf", font_size=24):
+                 font_path="Font/Super Bubble.ttf", font_size=20):
         self.rect = pygame.Rect(x, y, width, height)
 
         try:
@@ -68,6 +68,18 @@ class ScoreBar:
         pygame.draw.rect(window, self.fill_color, fill_rect, border_radius=self.border_radius)
         window.set_clip(prev_clip)
 
-        txt = f"{label}: {min(self.current, self.target)}/{self.target}"
+        if self.current >= self.target and self.current == self.target:
+            txt = f"{label}"
+        else:
+            txt = f"{label}: {min(self.current, self.target)}/{self.target}"
+
+        tx = self.rect.centerx - self.font.size(txt)[0] // 2
+        ty = self.inner_rect.y - 40
+
+        # Ombra scura per contrasto
+        shadow = self.font.render(txt, True, (40, 20, 30))
+        window.blit(shadow, (tx + 4, ty + 4))
+
+        # Testo principale
         surf = self.font.render(txt, True, self.text_color)
-        window.blit(surf, (self.rect.centerx - surf.get_width() // 2, self.inner_rect.y - 40))
+        window.blit(surf, (tx, ty))
