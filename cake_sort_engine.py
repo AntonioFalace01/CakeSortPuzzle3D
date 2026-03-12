@@ -570,7 +570,7 @@ class GameState:
                 pl = self.grid[r][c]
                 if pl and pl.is_completed_pure(MAX_SLICES):
                     self.plates_to_remove.append((r, c))
-                    self.score += 10
+                    self.score += 30
 
         # Gli snapshot visivi vengono costruiti usando _visited_by_tipo
         # che è stato popolato da _move_tipo durante i merge.
