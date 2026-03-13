@@ -647,7 +647,6 @@ class Game:
 
             if unlocked and next_tipo is not None:
                 self._pending_unlock_tipo = next_tipo
-                self.generate_options()
                 if self.unlock.all_unlocked():
                     self.show_all_unlocked = True
                     self.all_unlocked_timer = 0.0
