@@ -4,7 +4,7 @@ from button import Button
 
 class VolumeSlider:
     def __init__(self, x, y, w, h, initial_value=0.5,
-                 knob_path="Sprites/pomello.png", label="Volume",font_path="Font/Milk Cake.otf", font_size=20):
+                 knob_path="Sprites/pomello.png", label="Volume",font_path="Font/Brown Cake.ttf", font_size=15):
         self.rect = pygame.Rect(x, y, w, h)
         self.value = float(initial_value)
         self.label = label
