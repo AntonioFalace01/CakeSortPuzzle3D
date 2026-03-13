@@ -147,6 +147,7 @@ class SFX:
     place = None
     spawn = None
     complete = None
+    unlock = None
 
     @classmethod
     def init(cls):
@@ -154,7 +155,9 @@ class SFX:
         cls.place = pygame.mixer.Sound("Audio/place.wav")
         cls.spawn = pygame.mixer.Sound("Audio/spawn.wav")
         cls.complete = pygame.mixer.Sound("Audio/complete.wav")
+        cls.unlock = pygame.mixer.Sound("Audio/unlock2.wav")
         cls.spawn.set_volume(0.6)
         cls.pickup.set_volume(0.7)
         cls.place.set_volume(0.7)
         cls.complete.set_volume(0.7)
+        cls.unlock.set_volume(0.7)

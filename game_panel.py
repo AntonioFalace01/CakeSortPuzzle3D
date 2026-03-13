@@ -42,15 +42,10 @@ class Game:
             next_thr = 1
         self.score_bar.set_progress(self.unlock.total_score, next_thr)
 
-        # distanza tra opzione i e opzione i+1 (verticale)
         self.options_row_step = 170
-
-        # distanza tra i 2 piatti di un doppio H e doppio V
         self.block_h_spacing = 75
         self.block_v_spacing = 75
-
         self.options_area = (40, 120)
-
         self.last_time = pygame.time.get_ticks()
 
         self.current_options = []
@@ -62,25 +57,18 @@ class Game:
         self.drag_group = None
         self._group_offsets = None
 
-        # ---------------------------------------------------------------
-        # Coda animazioni: ogni elemento è un dict con:
-        #   "anim"         -> oggetto MovingSlice
-        #   "grid_before"  -> snapshot griglia DA mostrare DURANTE l'animazione
-        #   "grid_after"   -> snapshot griglia DA applicare DOPO l'animazione
-        # ---------------------------------------------------------------
-        self.slice_queue = []    # coda di step ancora da fare
-        self.active_slice = None  # step corrente in riproduzione
+        self.slice_queue = []
+        self.active_slice = None
 
-        # Griglia "visiva" separata da quella logica:
-        # viene aggiornata un passo alla volta seguendo le animazioni.
-        self.display_grid = None  # None = usa self.state.grid direttamente
+        self.display_grid = None
         self._pending_grid_after = None
-        self._completed_cake_delay = None   # secondi trascorsi nel delay torta, None = inattivo
-        self.COMPLETED_CAKE_DELAY = 0.7    # durata pausa visiva torta completa
+        self._completed_cake_delay = None
+        self.COMPLETED_CAKE_DELAY = 0.7
         self.completion_effects: list[CakeCompletionEffect] = []
         self.floating_scores: list[FloatingScore] = []
         self.unlock_effect: UnlockEffect | None = None
-        self._pending_unlock_tipo = None  # tipo torta da mostrare dopo le animazioni
+        self._pending_unlock_tipo = None
+        self._burst_phase = False   # True dal trigger_burst fino a quando tutti i confetti sono morti
 
         self.generate_options()
         BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -93,11 +81,10 @@ class Game:
         self.ai_game_over = False
         self.show_all_unlocked = False
         self.all_unlocked_timer = 0.0
-        self.ALL_UNLOCKED_DURATION = 3.0  # secondi visibile
+        self.ALL_UNLOCKED_DURATION = 3.0
 
-        # Autoplay
         self.autoplay = False
-        self.autoplay_delay = 1.0        # secondi tra una mossa e l'altra
+        self.autoplay_delay = 1.0
         self.autoplay_timer = 0.0
 
         self.button_autoplay = Button(320, 550, 250, 150,
@@ -105,11 +92,24 @@ class Game:
         self.button_autoplay_off = Button(320, 550, 250, 150,
                                       "Sprites/Button/button_autoplay_off.png")
 
+    # ------------------------------------------------------------------
+    # Proprietà helper: True se qualsiasi animazione è in corso
+    # ------------------------------------------------------------------
+    @property
+    def _is_animating(self):
+        return (
+            self.active_slice is not None
+            or self._completed_cake_delay is not None
+            or bool(self.completion_effects)
+            or self.unlock_effect is not None
+            or self.ai_animating
+        )
+
     def _mark_option_used(self, opt_index):
         self.used_options.add(opt_index)
         for sp in self.sprites:
             if sp.opt_index == opt_index:
-                sp.visible = False  # sparisce dalla colonna opzioni
+                sp.visible = False
 
     def _all_options_used(self):
         for oi in range(len(self.current_options)):
@@ -125,7 +125,6 @@ class Game:
         return available
 
     def _do_ai_move(self):
-        """Esegue una singola mossa IA. Ritorna True se è partita, False se impossibile."""
         if self.ai_animating:
             return False
 
@@ -151,7 +150,6 @@ class Game:
         real_oi = available_indices[solver_oi]
         started = self._start_ai_drag(real_oi, r, c)
         return started
-
 
     def _start_ai_drag(self, opt_index, start_r, start_c):
         group = [s for s in self.sprites if s.opt_index == opt_index and s.visible]
@@ -242,11 +240,9 @@ class Game:
                 sp1.opt_index = opt_index
                 sp0.plate_index = 0
                 sp1.plate_index = 1
-
                 if opt_index in self.used_options:
                     sp0.visible = False
                     sp1.visible = False
-
                 self.sprites.extend([sp0, sp1])
                 y += self.options_row_step
 
@@ -257,11 +253,9 @@ class Game:
                 sp1.opt_index = opt_index
                 sp0.plate_index = 0
                 sp1.plate_index = 1
-
                 if opt_index in self.used_options:
                     sp0.visible = False
                     sp1.visible = False
-
                 self.sprites.extend([sp0, sp1])
                 y += self.options_row_step
 
@@ -269,10 +263,8 @@ class Game:
                 sp = PlateSprite(plates[0], x, y, cell_size=self.cell_size)
                 sp.opt_index = opt_index
                 sp.plate_index = 0
-
                 if opt_index in self.used_options:
                     sp.visible = False
-
                 self.sprites.append(sp)
                 y += self.options_row_step
 
@@ -315,19 +307,10 @@ class Game:
                 y += self.options_row_step
 
     # ------------------------------------------------------------------
-    # ANIMAZIONI SLICE — versione con snapshot intermedi
+    # ANIMAZIONI SLICE
     # ------------------------------------------------------------------
 
     def _spawn_slice_animations_from_snapshots(self):
-        """
-        Costruisce la coda di animazioni dagli snapshot prodotti da GameState.
-        Ogni step della coda:
-          - anim:         oggetto MovingSlice
-          - grid_during:  snapshot da mostrare DURANTE il volo
-                          (source già svuotato, target non ancora aggiornato)
-          - grid_after:   snapshot da applicare DOPO la fine dell'animazione
-                          (target aggiornato, torta completa ancora visibile)
-        """
         self.slice_queue = []
 
         for snap in self.state.animation_snapshots:
@@ -348,9 +331,9 @@ class Game:
             )
 
             self.slice_queue.append({
-                "anim":         anim,
-                "grid_during":  snap["grid_during"],
-                "grid_after":   snap["grid_after"],
+                "anim":        anim,
+                "grid_during": snap["grid_during"],
+                "grid_after":  snap["grid_after"],
             })
 
         if self.slice_queue:
@@ -363,9 +346,9 @@ class Game:
             self.display_grid = None
             self._pending_grid_after = None
 
-        # Timer per il delay della torta completata (None = nessuna torta da aspettare)
         self._completed_cake_delay = None
         self.completion_effects = []
+        self._burst_phase = False
 
     def _advance_slice_queue(self):
         if self._pending_grid_after is not None:
@@ -374,15 +357,16 @@ class Game:
 
         if not self.slice_queue:
             has_completed = (
-                    self.display_grid is not None
-                    and any(
-                self.display_grid[r][c] is not None
-                for r, c in self.state.plates_to_remove
-            )
+                self.display_grid is not None
+                and any(
+                    self.display_grid[r][c] is not None
+                    for r, c in self.state.plates_to_remove
+                )
             )
             if has_completed:
                 self._completed_cake_delay = 0.0
                 self.active_slice = None
+                self._burst_phase = True
                 SFX.complete.play()
                 for (r, c) in self.state.plates_to_remove:
                     cx, cy = self._cell_center(r, c)
@@ -404,10 +388,15 @@ class Game:
             self.display_grid = None
             self._pending_grid_after = None
             self.state.finalize_removals()
-        # Se c'è uno sblocco in attesa, ora che le animazioni sono finite lo mostriamo
-        if self._pending_unlock_tipo is not None:
-            self.unlock_effect = UnlockEffect(900, 700, self._pending_unlock_tipo)
-            self._pending_unlock_tipo = None
+            # NON lanciare l'unlock qui: lo fa il draw loop quando tutto è davvero finito
+
+    def _launch_unlock_effect(self):
+        """Lancia l'UnlockEffect e il suono. Chiamato solo quando tutto il resto è finito."""
+        if self._pending_unlock_tipo is None:
+            return
+        self.unlock_effect = UnlockEffect(900, 700, self._pending_unlock_tipo)
+        self._pending_unlock_tipo = None
+        SFX.unlock.play()
 
     # ------------------------------------------------------------------
     # HELPERS LAYOUT
@@ -424,16 +413,10 @@ class Game:
         return False
 
     def _draw_double_links_in_options(self, window):
-        """
-        Rettangolino bianco tra i 2 piatti di un'opzione doppia (H/V),
-        SOLO nell'area opzioni (sinistra). Non viene disegnato in griglia.
-        """
         link_color = (255, 255, 255)
+        thickness = 15
+        inset = 10
 
-        thickness = 15   # spessore del rettangolino
-        inset = 10       # quanto entra dentro i piatti
-
-        # raggruppa sprite visibili per opt_index
         by_opt = {}
         for sp in self.sprites:
             if not sp.visible:
@@ -453,7 +436,6 @@ class Game:
             if orient not in ("H", "V"):
                 continue
 
-            # ordina per plate_index: 0 e 1
             group.sort(key=lambda s: s.plate_index)
             a, b = group[0], group[1]
             ra, rb = a.rect, b.rect
@@ -465,8 +447,7 @@ class Game:
                     continue
                 cy = (ra.centery + rb.centery) // 2
                 rect = pygame.Rect(x1, cy - thickness // 2, x2 - x1, thickness)
-
-            else:  # orient == "V"
+            else:
                 y1 = ra.bottom - inset
                 y2 = rb.top + inset
                 if y2 <= y1:
@@ -489,15 +470,15 @@ class Game:
                     finished_all = False
             if finished_all:
                 self._finish_ai_drop()
-        # ---- AUTOPLAY ----
-        if self.autoplay and not self.ai_animating and self.active_slice is None and self._completed_cake_delay is None:
+
+        # ---- AUTOPLAY: si attiva solo quando nessuna animazione è in corso ----
+        if self.autoplay and not self._is_animating:
             self.autoplay_timer += dt
             if self.autoplay_timer >= self.autoplay_delay:
                 self.autoplay_timer = 0.0
                 moved = self._do_ai_move()
                 if not moved:
-                    self.autoplay = False  # nessuna mossa possibile, disattiva
-
+                    self.autoplay = False
 
         self.last_time = now
 
@@ -515,15 +496,11 @@ class Game:
         else:
             self.button_autoplay.draw(window)
 
-
         for sp in self.sprites:
             sp.draw(window, dt)
         self._draw_double_links_in_options(window)
 
-        # ---------------------------------------------------------------
-        # Rendering griglia: usa display_grid (snapshot intermedio) se
-        # un'animazione è in corso, altrimenti usa la griglia logica reale.
-        # ---------------------------------------------------------------
+        # Rendering griglia
         grid_to_render = self.display_grid if self.display_grid is not None else self.state.grid
 
         for r in range(self.state.rows):
@@ -537,10 +514,7 @@ class Game:
                     plate_size = min(self.tavolo.larg_cella, self.tavolo.alt_cella)
                     Assets.draw_plate(window, plate, center_x, center_y, plate_size=plate_size)
 
-        # ---------------------------------------------------------------
-        # Animazione slice attiva: riproduce una alla volta.
-        # Quando finisce, avanza alla prossima (che aggiorna display_grid).
-        # ---------------------------------------------------------------
+        # Animazione slice attiva
         if self.active_slice:
             self.active_slice.update(dt)
             self.active_slice.draw(window)
@@ -548,24 +522,35 @@ class Game:
                 self._advance_slice_queue()
         elif self._completed_cake_delay is not None:
             self._completed_cake_delay += dt
-            # Aggiorna e disegna il pulse degli effetti
             for eff in self.completion_effects:
                 eff.update_pulse(dt)
             for eff in self.completion_effects:
                 eff.draw_pulse(window)
             if self._completed_cake_delay >= self.COMPLETED_CAKE_DELAY:
-                # Scatta il burst su tutti gli effetti
                 for eff in self.completion_effects:
                     eff.trigger_burst()
                 self._completed_cake_delay = None
                 self._start_next_slice_or_finalize()
 
-        # Aggiorna e disegna i burst (sopra a tutto)
+        # Burst confetti torta completata
         for eff in list(self.completion_effects):
             eff.update_burst(dt)
             eff.draw_burst(window)
             if eff.is_done():
                 self.completion_effects.remove(eff)
+
+        # Quando tutti i confetti sono morti, abbassa il flag burst
+        if not self.completion_effects:
+            self._burst_phase = False
+
+        # Lancia l'unlock solo quando TUTTO è davvero finito:
+        # nessuna slice in volo, nessun delay torta, nessun confetto, nessun burst_phase
+        if (self._pending_unlock_tipo is not None
+                and self.active_slice is None
+                and self._completed_cake_delay is None
+                and not self._burst_phase
+                and not self.completion_effects):
+            self._launch_unlock_effect()
 
         for fs in list(self.floating_scores):
             fs.update(dt)
@@ -573,7 +558,7 @@ class Game:
             if not fs.alive:
                 self.floating_scores.remove(fs)
 
-        # --- Effetto sblocco nuova torta (sopra tutto) ---
+        # Effetto sblocco nuova torta (sopra tutto)
         if self.unlock_effect is not None:
             self.unlock_effect.update(dt)
             self.unlock_effect.draw(window)
@@ -588,7 +573,6 @@ class Game:
             label = "Prossima torta"
         self.score_bar.draw(window, label=label)
 
-        # ---- Popup "Tutte le torte sbloccate!" ----
         if self.show_all_unlocked:
             self.all_unlocked_timer += dt
             if self.all_unlocked_timer < self.ALL_UNLOCKED_DURATION:
@@ -597,12 +581,10 @@ class Game:
                 self.show_all_unlocked = False
 
     def _draw_all_unlocked_popup(self, window):
-        # Sfondo semi-trasparente
         overlay = pygame.Surface((900, 700), pygame.SRCALPHA)
         overlay.fill((0, 0, 0, 120))
         window.blit(overlay, (0, 0))
 
-        # Riquadro centrale
         box_w, box_h = 500, 180
         box_x = (900 - box_w) // 2
         box_y = (700 - box_h) // 2
@@ -610,7 +592,6 @@ class Game:
         pygame.draw.rect(window, (255, 220, 240), (box_x, box_y, box_w, box_h), border_radius=20)
         pygame.draw.rect(window, (200, 100, 150), (box_x, box_y, box_w, box_h), width=4, border_radius=20)
 
-        # Testo
         try:
             font_big = pygame.font.Font("Font/Milk Cake.otf", 36)
             font_small = pygame.font.Font("Font/Milk Cake.otf", 22)
@@ -618,7 +599,6 @@ class Game:
             font_big = pygame.font.SysFont("Arial", 36, bold=True)
             font_small = pygame.font.SysFont("Arial", 22)
 
-        # Animazione fade: appare e poi scompare
         progress = self.all_unlocked_timer / self.ALL_UNLOCKED_DURATION
         if progress < 0.2:
             alpha = int(255 * (progress / 0.2))
@@ -635,8 +615,6 @@ class Game:
 
         window.blit(line1, (450 - line1.get_width() // 2, box_y + 40))
         window.blit(line2, (450 - line2.get_width() // 2, box_y + 110))
-
-
 
     def _cell_topleft(self, r, c):
         cx = self.tavolo.x + self.tavolo.padding + c * self.tavolo.larg_cella
@@ -668,7 +646,7 @@ class Game:
                 self.score_bar.set_progress(self.unlock.total_score, next_thr)
 
             if unlocked and next_tipo is not None:
-                self._pending_unlock_tipo = next_tipo  # verrà mostrato dopo le animazioni
+                self._pending_unlock_tipo = next_tipo
                 self.generate_options()
                 if self.unlock.all_unlocked():
                     self.show_all_unlocked = True
@@ -679,7 +657,6 @@ class Game:
                 r, c = sp.placed_cell
                 if self.state.grid[r][c] is None:
                     sp.visible = False
-
 
     def _block_cells_for_drop(self, opt, drop_r, drop_c, dragged_plate_index):
         orient = opt["orientation"]
@@ -701,7 +678,6 @@ class Game:
         coords = [(start_r, start_c)]
         return start_r, start_c, coords
 
-
     # ------------------------------------------------------------------
     # EVENTI
     # ------------------------------------------------------------------
@@ -718,8 +694,6 @@ class Game:
                 self.autoplay = not self.autoplay
                 self.autoplay_timer = 0.0
                 return None
-
-
 
         if event and event.type == pygame.KEYDOWN:
             if event.key == pygame.K_i:
@@ -747,7 +721,6 @@ class Game:
                     return None
 
                 real_oi = available_indices[solver_oi]
-
                 started = self._start_ai_drag(real_oi, r, c)
                 if not started:
                     print("IA: impossibile avviare animazione per mossa", move)
@@ -756,10 +729,12 @@ class Game:
         if not event:
             return None
 
+        # FIX: blocca tutti gli input drag se c'è un'animazione in corso
+        if self._is_animating:
+            return None
+
         if event.type == pygame.MOUSEBUTTONDOWN:
             for sp in reversed(self.sprites):
-                # FIX: non controllare sp.placed qui, perché un'opzione "usata"
-                # viene gestita con used_options + visible=False
                 if not sp.visible:
                     continue
                 if sp.opt_index in self.used_options:
@@ -826,7 +801,6 @@ class Game:
                         self._handle_score_unlocks(prev_score, self.state.score)
                         SFX.place.play()
 
-                        # snap in griglia e marca come piazzati (questo è "placed" vero)
                         for s in self.drag_group:
                             rr, cc = coords[s.plate_index]
                             s.snap_to_cell_topleft(self._cell_topleft(rr, cc))

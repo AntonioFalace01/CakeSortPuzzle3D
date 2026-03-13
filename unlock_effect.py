@@ -135,8 +135,8 @@ class UnlockEffect:
                 self.unlock_effect = None
     """
 
-    BOX_W = 340
-    BOX_H = 400
+    BOX_W = 260
+    BOX_H = 310
 
     FADE_IN_END  = 0.40
     HOLD_END     = 3.80
@@ -161,15 +161,15 @@ class UnlockEffect:
         self._burst_done    = False
         self._sparkle_timer = 0.0
 
-        # Font: sans-serif pulito e moderno, bold
-        self.font_title = pygame.font.SysFont("segoeui",  30, bold=True)
-        self.font_sub   = pygame.font.SysFont("segoeui",  16, bold=False)
-        # Fallback cross-platform
-        if self.font_title.size("A")[0] == 0:
-            self.font_title = pygame.font.SysFont("dejavusans", 30, bold=True)
-            self.font_sub   = pygame.font.SysFont("dejavusans", 16)
+        # Font stile gioco: Milk Cake (già usato nel progetto)
+        try:
+            self.font_title = pygame.font.Font("Font/Milk Cake.otf", 26)
+            self.font_sub   = pygame.font.Font("Font/Milk Cake.otf", 15)
+        except Exception:
+            self.font_title = pygame.font.SysFont("Arial", 26, bold=True)
+            self.font_sub   = pygame.font.SysFont("Arial", 15)
 
-        self._slice_surf  = self._make_slice(112)
+        self._slice_surf  = self._make_slice(88)
         self._card_base   = self._build_card_base()
         self._card_border = self._build_card_border()
 
@@ -342,13 +342,13 @@ class UnlockEffect:
             sc = 1.0 + 0.022 * math.sin(self.age * math.pi * 1.6)
 
         rot = math.sin(self.age * 0.85) * 5
-        size = int(112 * sc)
+        size = int(88 * sc)
         if size < 4: return
         scaled  = pygame.transform.smoothscale(self._slice_surf, (size, size))
         rotated = pygame.transform.rotate(scaled, rot)
 
         slice_cx = self.cx
-        slice_cy = card_rect.centery - int(card_rect.height * 0.09) + drop
+        slice_cy = card_rect.centery - int(card_rect.height * 0.12) + drop
 
         # Alone pulsante rosa
         halo_r = size // 2 + 20
@@ -396,23 +396,23 @@ class UnlockEffect:
         ta     = int(alpha * ease)
         slide  = int((1 - ease) * 16)
 
-        base_y = card_rect.centery + int(card_rect.height * 0.27) + slide
-        div_w  = int(card_rect.width * 0.58)
+        base_y = card_rect.centery + int(card_rect.height * 0.30) + slide
+        div_w  = int(card_rect.width * 0.62)
 
         # Colori testo su sfondo rosa pastello
-        dark       = (90, 35, 55)     # bordeaux scuro, leggibile sul rosa
+        dark       = (90, 35, 55)
         white      = (255, 255, 255)
-        accent_txt = (185, 60, 100)   # rosa medio-scuro per "sbloccata!"
+        accent_txt = (185, 60, 100)
 
-        # Divisore superiore (bianco semi-trasparente)
-        self._draw_divider(surface, self.cx, base_y - 44, div_w, ta, (255, 255, 255))
+        # Divisore superiore
+        self._draw_divider(surface, self.cx, base_y - 36, div_w, ta, (255, 255, 255))
 
         # "Nuova torta" — testo scuro con ombra bianca
         l1 = self.font_title.render("Nuova torta", True, dark)
         l1_sh = self.font_title.render("Nuova torta", True, white)
         l1_sh.set_alpha(min(ta, 120))
         l1.set_alpha(ta)
-        y1 = base_y - 18
+        y1 = base_y - 14
         surface.blit(l1_sh, l1_sh.get_rect(center=(self.cx + 1, y1 + 1)))
         surface.blit(l1,    l1.get_rect(center=(self.cx, y1)))
 
@@ -424,7 +424,7 @@ class UnlockEffect:
         surface.blit(l2, l2.get_rect(center=(self.cx, y2)))
 
         # Divisore inferiore
-        div_y2 = y2 + l2.get_height() + 10
+        div_y2 = y2 + l2.get_height() + 8
         self._draw_divider(surface, self.cx, div_y2, div_w, ta, (255, 255, 255))
 
         # "continua…" lampeggiante
@@ -434,7 +434,7 @@ class UnlockEffect:
             ba = max(0, ba)
             hint = self.font_sub.render("continua…", True, dark)
             hint.set_alpha(ba)
-            surface.blit(hint, hint.get_rect(center=(self.cx, div_y2 + 20)))
+            surface.blit(hint, hint.get_rect(center=(self.cx, div_y2 + 16)))
 
     def _draw_particles_clipped(self, surface, card_rect, alpha):
         if not card_rect or alpha <= 0:
