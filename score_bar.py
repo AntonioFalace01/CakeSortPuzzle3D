@@ -2,7 +2,7 @@ import pygame
 
 class ScoreBar:
     def __init__(self, x, y, width, height, image_path="Sprites/barra.png",
-                 font_path="Font/Super Bubble.ttf", font_size=20):
+                 font_path="Font/Brown Cake.ttf", font_size=24):
         self.rect = pygame.Rect(x, y, width, height)
 
         try:
@@ -78,7 +78,7 @@ class ScoreBar:
 
         # Ombra scura per contrasto
         shadow = self.font.render(txt, True, (40, 20, 30))
-        window.blit(shadow, (tx + 4, ty + 4))
+        window.blit(shadow, (tx + 2, ty + 2))
 
         # Testo principale
         surf = self.font.render(txt, True, self.text_color)
