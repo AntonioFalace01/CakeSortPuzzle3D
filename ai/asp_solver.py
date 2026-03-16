@@ -56,7 +56,7 @@ class CakeSortASPSolver:
         program.add_program("col(0..{}).".format(state.cols - 1))
 
         # --------------------------
-        # 1) Fatti griglia — ORA con conteggio fette
+        # 1) Fatti griglia — con conteggio fette
         # --------------------------
         for r in range(state.rows):
             for c in range(state.cols):
@@ -80,7 +80,6 @@ class CakeSortASPSolver:
                             ot.set_T(piece.tipo)
                             program.add_object_input(ot)
 
-                            # NUOVO: passa anche il conteggio
                             oc = OccCount()
                             oc.set_R(r)
                             oc.set_C(c)
@@ -169,7 +168,6 @@ class CakeSortASPSolver:
                 for atom in ans.get_atoms():
                     if isinstance(atom, Choose):
                         candidate = (atom.get_O(), atom.get_R(), atom.get_C())
-                        # Valuta la qualità della mossa
                         score = self._evaluate_move(state, current_options, candidate)
                         if score > best_score:
                             best_score = score
@@ -218,6 +216,48 @@ class CakeSortASPSolver:
             positions = [(r + i, c) for i in range(len(plates))]
         else:
             positions = [(r, c)]
+
+        # ----------------------------------------------------------------
+        # BLOCCO: opzione inutile (nessun tipo in comune con la griglia)
+        # ----------------------------------------------------------------
+        types_in_grid = set()
+        for rr in range(state.rows):
+            for cc in range(state.cols):
+                pl = state.grid[rr][cc]
+                if pl:
+                    for piece in pl.pieces:
+                        types_in_grid.add(piece.tipo)
+
+        option_types = set()
+        for plate_obj in plates:
+            for piece in plate_obj.pieces:
+                if piece.count > 0:
+                    option_types.add(piece.tipo)
+
+        is_useless = bool(types_in_grid) and option_types.isdisjoint(types_in_grid)
+
+        if is_useless:
+            # Controlla se la posizione è isolata (nessun vicino occupato)
+            is_isolated_pos = True
+            for pr, pc in positions:
+                for dr, dc in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
+                    nr, nc = pr + dr, pc + dc
+                    if 0 <= nr < state.rows and 0 <= nc < state.cols:
+                        if state.grid[nr][nc] is not None:
+                            is_isolated_pos = False
+                            break
+                if not is_isolated_pos:
+                    break
+
+            if not is_isolated_pos:
+                # Penalità pesantissima: mossa inutile vicino ad altri piatti
+                score -= 300
+            else:
+                # Bonus: mossa inutile correttamente isolata
+                score += 20
+            # Non ha senso calcolare altro per una mossa inutile
+            return score
+        # ----------------------------------------------------------------
 
         # ---- Calcolo pressione griglia ----
         total_cells = state.rows * state.cols
@@ -331,7 +371,6 @@ class CakeSortASPSolver:
                 score += 2
 
         # ---- Bonus: mossa che mantiene spazio per blocchi doppi ----
-        # Controlla se dopo la mossa ci sono ancora coppie di celle adiacenti libere
         occupied_set = set()
         for rr in range(state.rows):
             for cc in range(state.cols):
@@ -357,7 +396,6 @@ class CakeSortASPSolver:
             score -= 15
 
         return score
-
 
     def _fallback_smart(self, state, current_options):
         """

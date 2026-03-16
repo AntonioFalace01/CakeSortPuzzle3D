@@ -184,13 +184,9 @@ grid_critical :- total_occupied(Occ), total_cells(Tot), Occ * 4 >= Tot * 3.
 
 % =============================================================
 % MERGE POTENZIALE — la mossa libererà spazio?
-% Un completamento (torta finita) = +1 cella libera dopo rimozione
 % =============================================================
 will_free_space(O,R,C) :- can_complete(O,R,C,_).
 
-% Merge che riduce celle occupate (source diventa vuota)
-% Se il piatto portato è puro e il vicino ha stesso tipo,
-% le fette si uniscono e potenzialmente il piatto portato si svuota
 merge_reduces(O,R,C) :-
     choose(O,R,C),
     pure_plate(O,P),
@@ -215,8 +211,35 @@ min_dist_center(O,R,C,MD) :-
     MD = #min{D : dist_center(O,R,C,D)}.
 
 % =============================================================
+% OPZIONE INUTILE — nessun tipo dell'opzione è presente in griglia
+% =============================================================
+
+% Tipo T dell'opzione O è presente da qualche parte nella griglia
+opt_type_exists_in_grid(O,T) :-
+    opt(O), type_in_opt(O,T), occ_type(_,_,T).
+
+% L'opzione O ha almeno un tipo che esiste in griglia
+opt_has_any_match_in_grid(O) :- opt_type_exists_in_grid(O,_).
+
+% L'opzione è completamente inutile: nessuno dei suoi tipi è in griglia
+% (ha senso solo se la griglia non è vuota)
+useless_opt(O) :- opt(O), not opt_has_any_match_in_grid(O), occ(_,_).
+
+% La mossa scelta usa un'opzione inutile
+useless_move(O,R,C) :- choose(O,R,C), useless_opt(O).
+
+% La mossa useless è isolata (nessun vicino occupato)
+useless_isolated(O,R,C) :- useless_move(O,R,C), not any_occ_neighbor(O,R,C).
+
+% =============================================================
 % WEAK CONSTRAINTS — Bilanciate tra punteggio e sopravvivenza
 % =============================================================
+
+% @13: Se l'opzione è inutile, DEVE essere isolata (penalità fortissima se non lo è)
+:~ useless_move(O,R,C), not useless_isolated(O,R,C). [150@13,O,R,C]
+
+% @13b: Se l'opzione è inutile ed è isolata, piccolo bonus (penalità negativa)
+:~ useless_move(O,R,C), useless_isolated(O,R,C). [-10@13,O,R,C]
 
 % @12: CRITICO — se griglia quasi piena, DEVI liberare spazio
 :~ choose(O,R,C), grid_critical, not will_free_space(O,R,C). [80@12,O,R,C]
@@ -245,8 +268,8 @@ min_dist_center(O,R,C,MD) :-
 % @4: OPZIONE PURA
 :~ choose(O,R,C), not pure_opt(O). [4@4,O,R,C]
 
-% @3: NON ISOLARE
-:~ isolated_penalty(O,R,C). [10@3,O,R,C]
+% @3: NON ISOLARE (solo per mosse NON inutili)
+:~ isolated_penalty(O,R,C), not useless_move(O,R,C). [10@3,O,R,C]
 
 % @2: CELLE LIBERE — penalizza proporzionalmente
 :~ choose(O,R,C), free_count(O,R,C,N), N < 8. [5@2,O,R,C]
