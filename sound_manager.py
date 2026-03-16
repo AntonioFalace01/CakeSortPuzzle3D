@@ -115,12 +115,22 @@ class SoundManager:
         self.update_volumes()
 
     def update_volumes(self):
+        # Musica
         pygame.mixer.music.set_volume(self.slider_music.value)
 
-        if SFX.pickup:
-            SFX.pickup.set_volume(self.slider_sfx.value)
-        if SFX.place:
-            SFX.place.set_volume(self.slider_sfx.value)
+        # Effetti sonori: applica lo stesso volume a TUTTI i suoni registrati in SFX
+        effects = [
+            getattr(SFX, "pickup", None),
+            getattr(SFX, "place", None),
+            getattr(SFX, "spawn", None),
+            getattr(SFX, "complete", None),
+            getattr(SFX, "unlock", None),
+        ]
+
+        for s in effects:
+            if s is not None:
+                s.set_volume(self.slider_sfx.value)
+
 
 
     def draw(self, window):

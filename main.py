@@ -120,6 +120,8 @@ def main(window):
         elif stato== "game":
             window.blit (sfondo_game_panel,(0,0))
             game_panel.draw(window)
+            if game_panel.ai_game_over:
+                stato = "game_over"
 
         elif stato == "pause_game":
             window.blit(sfondo_menu_pause,(0,0))
