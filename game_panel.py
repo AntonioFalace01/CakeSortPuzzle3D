@@ -105,6 +105,20 @@ class Game:
             or self.ai_animating
         )
 
+    # ------------------------------------------------------------------
+    # Calcolo punti per torta completata
+    # ------------------------------------------------------------------
+    def _cake_points(self):
+        """
+        Ogni torta completata vale:
+          10 + 5 * (numero di torte sbloccate)
+        dove le prime 3 (C,S,V) sono iniziali e non contano come "sbloccate".
+        """
+        base = 10
+        bonus_per_unlock = 5
+        unlocked_cakes = max(0, self.unlock.unlocked_count - 3)
+        return base + bonus_per_unlock * unlocked_cakes
+
     def _mark_option_used(self, opt_index):
         self.used_options.add(opt_index)
         for sp in self.sprites:
@@ -193,6 +207,12 @@ class Game:
         print("SCORE prima:", before_score)
 
         ok = self.state.place_block(opt, start_r, start_c)
+
+        # Calcola quante torte sono state completate in questa mossa
+        completed_cakes = len(self.state.plates_to_remove)
+        if ok and completed_cakes > 0:
+            points = self._cake_points() * completed_cakes
+            self.state.score += points
 
         after_score = self.state.score
         print("OK:", ok, "| SCORE dopo:", after_score, "| delta:", after_score - before_score)
@@ -368,11 +388,17 @@ class Game:
                 self.active_slice = None
                 self._burst_phase = True
                 SFX.complete.play()
+
+                # calcola il punteggio per torta per mostrarlo nel floating score
+                points_per_cake = self._cake_points()
+
                 for (r, c) in self.state.plates_to_remove:
                     cx, cy = self._cell_center(r, c)
                     eff = CakeCompletionEffect(cx, cy, plate_size=self.tavolo.larg_cella)
                     self.completion_effects.append(eff)
-                    self.floating_scores.append(FloatingScore(cx, cy - 20))
+                    self.floating_scores.append(
+                        FloatingScore(cx, cy - 20, text=f"+{points_per_cake}")
+                    )
                 return
 
         self._start_next_slice_or_finalize()
@@ -787,6 +813,12 @@ class Game:
                     print("SCORE prima:", before_score)
 
                     ok = self.state.place_block(opt, start_r, start_c)
+
+                    # Calcola quante torte completate in questa mossa
+                    completed_cakes = len(self.state.plates_to_remove)
+                    if ok and completed_cakes > 0:
+                        points = self._cake_points() * completed_cakes
+                        self.state.score += points
 
                     after = self.state.snapshot_grid_deep()
                     after_score = self.state.score

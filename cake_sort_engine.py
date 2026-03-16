@@ -562,15 +562,15 @@ class GameState:
 
         self.resolve_groups()
 
-        # --- FIX: calcola score e plates_to_remove UNA SOLA VOLTA
-        # sulla griglia logica finale, prima di costruire gli snapshot visivi.
+        # --- QUI NON SI AGGIUNGONO PIÙ PUNTI ---
+        # Si raccoglie solo la lista delle torte completate;
+        # il punteggio viene gestito dal Game in base alle torte sbloccate.
         self.plates_to_remove = []
         for r in range(self.rows):
             for c in range(self.cols):
                 pl = self.grid[r][c]
                 if pl and pl.is_completed_pure(MAX_SLICES):
                     self.plates_to_remove.append((r, c))
-                    self.score += 100
 
         # Gli snapshot visivi vengono costruiti usando _visited_by_tipo
         # che è stato popolato da _move_tipo durante i merge.
