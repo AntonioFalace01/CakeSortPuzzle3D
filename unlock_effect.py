@@ -3,8 +3,6 @@ import math
 import random
 from assets import Assets
 
-
-# Colori tematici per ogni tipo di torta
 CAKE_THEME_COLORS = {
     "C": [(200, 50,  90), (240, 120, 150), (255, 200, 215)],
     "S": [(230, 70,  60), (255, 150,  90), (255, 220, 190)],
@@ -19,9 +17,6 @@ CAKE_THEME_COLORS = {
 }
 
 
-# ---------------------------------------------------------------------------
-# Singola particella confetto — confinata nel riquadro
-# ---------------------------------------------------------------------------
 class _Confetto:
     def __init__(self, cx, cy, colors, box_w, box_h):
         angle = random.uniform(0, math.pi * 2)
@@ -64,10 +59,6 @@ class _Confetto:
         rot = pygame.transform.rotate(s, self.rot)
         surface.blit(rot, rot.get_rect(center=(int(self.x), int(self.y))))
 
-
-# ---------------------------------------------------------------------------
-# Scintilla a croce puntiforme
-# ---------------------------------------------------------------------------
 class _Sparkle:
     def __init__(self, cx, cy, color, box_w, box_h):
         bx = cx - box_w // 2 + 15
@@ -115,26 +106,6 @@ class _Sparkle:
 # UnlockEffect — card compatta, look moderno
 # ---------------------------------------------------------------------------
 class UnlockEffect:
-    """
-    Card animata compatta per lo sblocco torta.
-    Non a schermo intero: riquadro 340x400 centrato.
-
-    Fasi:
-      FADE_IN   0.0 – 0.4s    card scala + bounce in entrata
-      HOLD      0.4 – 3.8s    visibile, confetti e scintille
-      FADE_OUT  3.8 – 4.4s    scala verso il basso + fade
-      DONE      > 4.4s
-
-    Uso:
-        self.unlock_effect = UnlockEffect(900, 700, tipo)
-        # nel draw loop:
-        if self.unlock_effect:
-            self.unlock_effect.update(dt)
-            self.unlock_effect.draw(window)
-            if self.unlock_effect.is_done():
-                self.unlock_effect = None
-    """
-
     BOX_W = 260
     BOX_H = 310
 
@@ -227,7 +198,6 @@ class UnlockEffect:
         pygame.draw.rect(surf, (255, 255, 255, 80), (5, 5, w - 10, h - 10), width=1, border_radius=23)
         return surf
 
-    # ------------------------------------------------------------------
 
     def update(self, dt):
         self.age += dt
@@ -253,7 +223,6 @@ class UnlockEffect:
             s.update(dt)
         self._sparkles = [s for s in self._sparkles if s.alive]
 
-    # ------------------------------------------------------------------
 
     def _card_transform(self):
         if self.age < self.FADE_IN_END:
@@ -407,7 +376,6 @@ class UnlockEffect:
         # Divisore superiore
         self._draw_divider(surface, self.cx, base_y - 36, div_w, ta, (255, 255, 255))
 
-        # "Nuova torta" — testo scuro con ombra bianca
         l1 = self.font_title.render("Nuova torta", True, dark)
         l1_sh = self.font_title.render("Nuova torta", True, white)
         l1_sh.set_alpha(min(ta, 120))
@@ -416,7 +384,6 @@ class UnlockEffect:
         surface.blit(l1_sh, l1_sh.get_rect(center=(self.cx + 1, y1 + 1)))
         surface.blit(l1,    l1.get_rect(center=(self.cx, y1)))
 
-        # "sbloccata!" — rosa medio-scuro
         accent_dark = accent_txt
         l2 = self.font_title.render("sbloccata!", True, accent_dark)
         l2.set_alpha(ta)
@@ -427,7 +394,6 @@ class UnlockEffect:
         div_y2 = y2 + l2.get_height() + 8
         self._draw_divider(surface, self.cx, div_y2, div_w, ta, (255, 255, 255))
 
-        # "continua…" lampeggiante
         if self.age > self.HOLD_END - 1.3:
             bt = (self.age - (self.HOLD_END - 1.3)) / 1.3
             ba = int(ta * (0.35 + 0.65 * math.sin(bt * math.pi * 4.5)))
@@ -462,7 +428,6 @@ class UnlockEffect:
         clip.set_alpha(alpha)
         surface.blit(clip, card_rect.topleft)
 
-    # ------------------------------------------------------------------
 
     def draw(self, surface):
         scale, alpha = self._card_transform()

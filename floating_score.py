@@ -2,10 +2,6 @@ import pygame
 
 
 class FloatingScore:
-    """
-    Testo "+10" che appare sulla cella, sale verso l'alto e svanisce.
-    """
-
     def __init__(self, cx, cy, text="+10",
                  font_path="Font/Milk Cake.otf", font_size=36,
                  color=(255, 230, 80), duration=1.5):
@@ -38,7 +34,6 @@ class FloatingScore:
     def draw(self, surface):
         if not self.alive:
             return
-        # Alpha: pieno per il primo 60%, poi fade out
         fade_start = self.duration * 0.6
         if self.age > fade_start:
             t = (self.age - fade_start) / (self.duration - fade_start)

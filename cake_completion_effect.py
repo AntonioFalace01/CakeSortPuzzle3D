@@ -4,8 +4,6 @@ import random
 
 
 class Confetto:
-    """Singola particella di confetto che esplode dalla cella."""
-
     COLORI = [
         (255, 100, 150),  # rosa
         (255, 200,  80),  # giallo
@@ -56,34 +54,6 @@ class Confetto:
 
 
 class CakeCompletionEffect:
-    """
-    Effetto visivo per torta completata.
-
-    Fasi:
-      1. PULSE  — la torta si "gonfia" e irradia un alone luminoso
-                  (dura pulse_duration secondi, va in parallelo con il delay visivo del game)
-      2. BURST  — al momento della rimozione, esplosione di confetti
-                  (i confetti vivono autonomamente dopo la rimozione)
-
-    Uso tipico in game_panel.py:
-        # quando plates_to_remove è popolato:
-        effect = CakeCompletionEffect(cx, cy, plate_size)
-
-        # nel draw loop, DURANTE il delay visivo:
-        effect.update_pulse(dt)
-        effect.draw_pulse(window, cx, cy, plate_size)
-
-        # quando la torta viene rimossa (finalize_removals):
-        effect.trigger_burst()
-
-        # ogni frame dopo il burst:
-        effect.update_burst(dt)
-        effect.draw_burst(window)
-
-        # controlla se tutto è finito:
-        if effect.is_done(): ...
-    """
-
     GLOW_COLOR = (255, 230, 120)   # giallo dorato
 
     def __init__(self, cx, cy, plate_size=75, n_confetti=28):
@@ -91,18 +61,11 @@ class CakeCompletionEffect:
         self.cy = cy
         self.plate_size = plate_size
         self.n_confetti = n_confetti
-
-        # --- Pulse ---
         self.pulse_age  = 0.0
         self.pulse_done = False
 
-        # --- Burst ---
         self.burst_triggered = False
         self.confetti: list[Confetto] = []
-
-    # ------------------------------------------------------------------
-    # PULSE
-    # ------------------------------------------------------------------
 
     def update_pulse(self, dt):
         if not self.pulse_done:
@@ -120,7 +83,7 @@ class CakeCompletionEffect:
         cy         = cy         or self.cy
         plate_size = plate_size or self.plate_size
 
-        # Oscillazione lenta (2 Hz)
+        # Oscillazione lenta
         pulse = 0.5 + 0.5 * math.sin(self.pulse_age * math.pi * 4)
 
         # Alone esterno che si espande e pulsa
@@ -149,10 +112,6 @@ class CakeCompletionEffect:
         )
         surface.blit(ring_surf, ring_surf.get_rect(center=(cx, cy)))
 
-    # ------------------------------------------------------------------
-    # BURST
-    # ------------------------------------------------------------------
-
     def trigger_burst(self):
         if self.burst_triggered:
             return
@@ -170,8 +129,6 @@ class CakeCompletionEffect:
         for c in self.confetti:
             c.draw(surface)
 
-    # ------------------------------------------------------------------
 
     def is_done(self):
-        """True quando sia il pulse che il burst sono terminati."""
         return self.pulse_done and not self.confetti

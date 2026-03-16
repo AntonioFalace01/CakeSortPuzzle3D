@@ -68,7 +68,7 @@ class Game:
         self.floating_scores: list[FloatingScore] = []
         self.unlock_effect: UnlockEffect | None = None
         self._pending_unlock_tipo = None
-        self._burst_phase = False   # True dal trigger_burst fino a quando tutti i confetti sono morti
+        self._burst_phase = False
 
         self.generate_options()
         BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -92,9 +92,6 @@ class Game:
         self.button_autoplay_off = Button(320, 550, 250, 150,
                                       "Sprites/Button/button_autoplay_off.png")
 
-    # ------------------------------------------------------------------
-    # Proprietà helper: True se qualsiasi animazione è in corso
-    # ------------------------------------------------------------------
     @property
     def _is_animating(self):
         return (
@@ -105,9 +102,6 @@ class Game:
             or self.ai_animating
         )
 
-    # ------------------------------------------------------------------
-    # Calcolo punti per torta completata
-    # ------------------------------------------------------------------
     def _cake_points(self):
         """
         Ogni torta completata vale:
@@ -326,10 +320,6 @@ class Game:
                 self.sprites.append(sp)
                 y += self.options_row_step
 
-    # ------------------------------------------------------------------
-    # ANIMAZIONI SLICE
-    # ------------------------------------------------------------------
-
     def _spawn_slice_animations_from_snapshots(self):
         self.slice_queue = []
 
@@ -414,7 +404,6 @@ class Game:
             self.display_grid = None
             self._pending_grid_after = None
             self.state.finalize_removals()
-            # NON lanciare l'unlock qui: lo fa il draw loop quando tutto è davvero finito
 
     def _launch_unlock_effect(self):
         """Lancia l'UnlockEffect e il suono. Chiamato solo quando tutto il resto è finito."""
@@ -423,10 +412,6 @@ class Game:
         self.unlock_effect = UnlockEffect(900, 700, self._pending_unlock_tipo)
         self._pending_unlock_tipo = None
         SFX.unlock.play()
-
-    # ------------------------------------------------------------------
-    # HELPERS LAYOUT
-    # ------------------------------------------------------------------
 
     def _has_any_move(self):
         for oi, opt in enumerate(self.current_options):
@@ -487,7 +472,6 @@ class Game:
         now = pygame.time.get_ticks()
         dt = (now - self.last_time) / 1000.0
 
-        # Aggiorna animazione AI sprite
         if self.ai_animating and self.ai_anim_sprites:
             finished_all = True
             for s in self.ai_anim_sprites:
@@ -497,7 +481,6 @@ class Game:
             if finished_all:
                 self._finish_ai_drop()
 
-        # ---- AUTOPLAY: si attiva solo quando nessuna animazione è in corso ----
         if self.autoplay and not self._is_animating:
             self.autoplay_timer += dt
             if self.autoplay_timer >= self.autoplay_delay:
@@ -508,7 +491,6 @@ class Game:
 
         self.last_time = now
 
-        # Nascondi sprite piazzati se la cella logica è vuota
         for sp in self.sprites:
             if sp.placed and sp.placed_cell:
                 r, c = sp.placed_cell
@@ -526,7 +508,6 @@ class Game:
             sp.draw(window, dt)
         self._draw_double_links_in_options(window)
 
-        # Rendering griglia
         grid_to_render = self.display_grid if self.display_grid is not None else self.state.grid
 
         for r in range(self.state.rows):
@@ -584,7 +565,7 @@ class Game:
             if not fs.alive:
                 self.floating_scores.remove(fs)
 
-        # Effetto sblocco nuova torta (sopra tutto)
+        # Effetto sblocco nuova torta
         if self.unlock_effect is not None:
             self.unlock_effect.update(dt)
             self.unlock_effect.draw(window)
@@ -703,9 +684,6 @@ class Game:
         coords = [(start_r, start_c)]
         return start_r, start_c, coords
 
-    # ------------------------------------------------------------------
-    # EVENTI
-    # ------------------------------------------------------------------
 
     def gest_eventi(self, posizione_mouse, event=None):
         if self.ai_game_over:
@@ -754,7 +732,6 @@ class Game:
         if not event:
             return None
 
-        # FIX: blocca tutti gli input drag se c'è un'animazione in corso
         if self._is_animating:
             return None
 
