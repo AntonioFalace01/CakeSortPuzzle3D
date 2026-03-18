@@ -265,7 +265,7 @@ class GameState:
                 seen.add(npos)
                 queue.append(path + [npos])
 
-        return [to_pos]  # fallback: salto diretto (non dovrebbe servire)
+        return [to_pos]
 
     def _expand_events_to_hops(self, raw_events, visited_by_tipo=None):
         def manhattan(a, b):
@@ -505,26 +505,26 @@ class GameState:
         a_new = pos_a in placed_positions
         b_new = pos_b in placed_positions
 
-        # 1) puro appena piazzato
+        #puro appena piazzato
         if a_pure and a_new and not (b_pure and b_new):
             return pos_a, pos_b
         if b_pure and b_new and not (a_pure and a_new):
             return pos_b, pos_a
 
-        # 2) puro pre-esistente
+        #puro pre-esistente
         if a_pure and not b_pure:
             return pos_a, pos_b
         if b_pure and not a_pure:
             return pos_b, pos_a
 
-        # 3) calamita logica (solo misto/misto)
+        #calamita logica (solo misto/misto)
         if not a_pure and not b_pure:
             if a_new and not b_new:
                 return pos_a, pos_b
             if b_new and not a_new:
                 return pos_b, pos_a
 
-        # 4) fallback: più count
+        #fallback: più count
         if pa.count > pb.count:
             return pos_a, pos_b
         if pb.count > pa.count:
@@ -557,8 +557,8 @@ class GameState:
     def _magnet_new_pure_plate(self, pr, pc, placed_positions):
         """
         Se il piatto appena piazzato è PURO, attrae dai vicini le fette dello stesso tipo.
-        NON tocca nessun vicino (puro o misto) che ha a sua volta altri vicini con
-        lo stesso tipo: quel piatto è un relay e va lasciato al chain_merge.
+        non tocca nessun vicino (puro o misto) che ha a sua volta altri vicini con
+        lo stesso tipo, quel piatto è un relay e va lasciato al chain_merge.
         """
         plate = self.grid[pr][pc]
         if not plate:
@@ -580,9 +580,6 @@ class GameState:
                 if not nplate or nplate.get_piece(tipo) is None:
                     continue
 
-                # Se il vicino (puro O misto) ha altri vicini con lo stesso tipo
-                # escluso il piatto corrente, è un relay verso altre celle:
-                # NON rubare le sue fette o si crea un gap che blocca il merge.
                 is_bridge = self._count_neighbors_with_tipo(nr, nc, tipo, exclude_pos=(pr, pc)) > 0
                 if is_bridge:
                     continue
@@ -612,7 +609,6 @@ class GameState:
                 tp = Piece(tipo, 0)
                 target.pieces.append(tp)
             else:
-                # target ha altri tipi diversi, non possiamo aggiungere
                 return 0
 
         free_total = target.free_slots(MAX_SLICES)

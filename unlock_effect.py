@@ -12,8 +12,6 @@ CAKE_THEME_COLORS = {
     "B": [(35,  75, 210), (75, 135, 255), (175, 210, 255)],
     "D": [(50,  20,  70), (125,  55, 150), (205, 155, 230)],
     "E": [(25, 155,  85), (75, 215, 135), (175, 255, 210)],
-    "F": [(170, 215, 255), (220, 240, 255), (155, 195, 240)],
-    "G": [(195, 135,  15), (255, 195,  50), (255, 238, 155)],
 }
 
 
@@ -101,10 +99,6 @@ class _Sparkle:
                         sp.set_at((px, py), (*self.color, a))
         surface.blit(sp, (int(self.x) - r * 2 - 1, int(self.y) - r * 2 - 1))
 
-
-# ---------------------------------------------------------------------------
-# UnlockEffect — card compatta, look moderno
-# ---------------------------------------------------------------------------
 class UnlockEffect:
     BOX_W = 260
     BOX_H = 310
@@ -132,7 +126,6 @@ class UnlockEffect:
         self._burst_done    = False
         self._sparkle_timer = 0.0
 
-        # Font stile gioco: Milk Cake (già usato nel progetto)
         try:
             self.font_title = pygame.font.Font("Font/Milk Cake.otf", 26)
             self.font_sub   = pygame.font.Font("Font/Milk Cake.otf", 15)
@@ -143,8 +136,6 @@ class UnlockEffect:
         self._slice_surf  = self._make_slice(88)
         self._card_base   = self._build_card_base()
         self._card_border = self._build_card_border()
-
-    # ------------------------------------------------------------------
 
     def _make_slice(self, size):
         key = Assets.TYPE_TO_SLICE.get(self.tipo)
@@ -192,9 +183,7 @@ class UnlockEffect:
     def _build_card_border(self):
         w, h = self.BOX_W, self.BOX_H
         surf = pygame.Surface((w, h), pygame.SRCALPHA)
-        # Bordo rosa medio, coerente con lo sfondo pastello
         pygame.draw.rect(surf, (230, 130, 160, 220), (0, 0, w, h), width=3, border_radius=28)
-        # Highlight bianco interno sottile
         pygame.draw.rect(surf, (255, 255, 255, 80), (5, 5, w - 10, h - 10), width=1, border_radius=23)
         return surf
 
@@ -259,7 +248,7 @@ class UnlockEffect:
         gw = int(self.BOX_W * scale) + 64
         gh = int(self.BOX_H * scale) + 64
         glow = pygame.Surface((gw, gh), pygame.SRCALPHA)
-        pink = (235, 130, 160)   # rosa fisso coerente con lo sfondo
+        pink = (235, 130, 160)
         for i in range(30, 0, -3):
             a = int(alpha * (0.18 + 0.12 * pulse) * (1 - i / 30) ** 1.2)
             if a <= 0: continue

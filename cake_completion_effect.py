@@ -89,7 +89,7 @@ class CakeCompletionEffect:
         # Alone esterno che si espande e pulsa
         max_radius = int(plate_size * 0.72)
         radius     = int(plate_size * 0.45 + pulse * plate_size * 0.20)
-        alpha      = int(80 + pulse * 100)   # 80–180
+        alpha      = int(80 + pulse * 100)
 
         glow_surf = pygame.Surface((max_radius * 2 + 4, max_radius * 2 + 4), pygame.SRCALPHA)
         pygame.draw.circle(

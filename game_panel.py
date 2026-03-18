@@ -103,11 +103,6 @@ class Game:
         )
 
     def _cake_points(self):
-        """
-        Ogni torta completata vale:
-          10 + 5 * (numero di torte sbloccate)
-        dove le prime 3 (C,S,V) sono iniziali e non contano come "sbloccate".
-        """
         base = 10
         bonus_per_unlock = 5
         unlocked_cakes = max(0, self.unlock.unlocked_count - 3)
@@ -550,8 +545,6 @@ class Game:
         if not self.completion_effects:
             self._burst_phase = False
 
-        # Lancia l'unlock solo quando TUTTO è davvero finito:
-        # nessuna slice in volo, nessun delay torta, nessun confetto, nessun burst_phase
         if (self._pending_unlock_tipo is not None
                 and self.active_slice is None
                 and self._completed_cake_delay is None

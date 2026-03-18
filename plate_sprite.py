@@ -20,13 +20,12 @@ class PlateSprite:
         self.placed_cell = None
         self.visible = True
 
-        self.opt_index = None     # indice opzione in current_options
-        self.plate_index = 0      # 0 o 1 dentro al blocco
+        self.opt_index = None
+        self.plate_index = 0
         self.spawning = True
         self.spawn_time = 0.0
         self.spawn_duration = 0.35
         self.spawn_offset_y = -160
-        # AI auto-move
         self.ai_moving = False
         self.ai_time = 0.0
         self.ai_duration = 0.35
@@ -46,7 +45,6 @@ class PlateSprite:
 
         self.ai_time += dt
         t = min(1.0, self.ai_time / self.ai_duration)
-        # easing smooth
         ease = 1 - (1 - t) ** 3
 
         sx, sy = self.ai_start
