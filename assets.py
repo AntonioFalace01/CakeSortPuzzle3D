@@ -4,11 +4,11 @@ import math
 
 class UnlockManager:
     def __init__(self):
-        self.all_types_ordered=["C", "S", "V", "L","A","B", "D", "E", "F", "G"]
+        self.all_types_ordered=["C", "S", "V", "L","A","B", "D", "E"]
         self.active_types = set(self.all_types_ordered[:3])
         self.unlocked_count = len(self.active_types)
         # soglie di sblocco per ognuna delle 7 nuove torte
-        self.unlock_thresholds = [100, 250, 450, 700, 1000, 1350, 1750]
+        self.unlock_thresholds = [100, 250, 450, 700, 1000]
 
         self.total_score = 0  # cumulativo globale per sblocchi
         self.next_unlock_index = 0  # indice nella lista unlock_thresholds
@@ -53,13 +53,11 @@ class Assets:
                     "almond_crunch": "Sprites/slices/cakeSlice3.png",
                     "blueberry_glaze": "Sprites/slices/cakeSlice4.png",
                     "dark_forest": "Sprites/slices/cakeSlice5.png",
-                    "emerald_mint": "Sprites/slices/cakeSlice6.png",
-                   "frost_vanilla": "Sprites/slices/cakeSlice9.png",
-                   "golden_honey": "Sprites/slices/cakeSlice10.png"}
+                    "emerald_mint": "Sprites/slices/cakeSlice6.png"}
 
     TYPE_TO_SLICE = {"C": "raspberry_choco", "S": "sprinkles_cherry", "V": "lattice_berry", "L": "lemon_swirl",
                      "A": "almond_crunch", "B": "blueberry_glaze", "D": "dark_forest", "E": "emerald_mint",
-                     "F": "frost_vanilla", "G": "golden_honey", }
+                     }
 
 
     _plate_src = None
