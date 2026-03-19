@@ -1,6 +1,6 @@
 from embasp.languages.predicate import Predicate
 
-
+#cella vuota nella griglia
 class Empty(Predicate):
     predicate_name = "empty"
 
@@ -14,7 +14,7 @@ class Empty(Predicate):
     def get_C(self): return self.C
     def set_C(self, v): self.C = v
 
-
+#cella occupata nella griglia
 class Occ(Predicate):
     predicate_name = "occ"
 
@@ -28,7 +28,7 @@ class Occ(Predicate):
     def get_C(self): return self.C
     def set_C(self, v): self.C = v
 
-
+#indica che nella cella r, c, c'è almeno un pezzo di tipo T
 class OccType(Predicate):
     predicate_name = "occ_type"
 
@@ -45,7 +45,7 @@ class OccType(Predicate):
     def get_T(self): return self.T
     def set_T(self, v): self.T = v
 
-
+#opzione di piazzamento
 class Opt(Predicate):
     predicate_name = "opt"
 
@@ -56,7 +56,7 @@ class Opt(Predicate):
     def get_O(self): return self.O
     def set_O(self, v): self.O = v
 
-
+#opzione o ha orientamento OR (verticale o orizzontale)
 class OptOrient(Predicate):
     predicate_name = "opt_orient"
 
@@ -70,7 +70,7 @@ class OptOrient(Predicate):
     def get_OR(self): return self.OR
     def set_OR(self, v): self.OR = v
 
-
+#opzione o ha dimensione S
 class OptSize(Predicate):
     predicate_name = "opt_size"
 
@@ -84,7 +84,7 @@ class OptSize(Predicate):
     def get_S(self): return self.S
     def set_S(self, v): self.S = v
 
-
+#contenuto dell'opzione o è un pezzo di tipo T e dimensione K
 class OptPiece(Predicate):
     predicate_name = "opt_piece"
 
@@ -104,7 +104,7 @@ class OptPiece(Predicate):
     def get_K(self): return self.K
     def set_K(self, v): self.K = v
 
-
+#mossa scelta
 class Choose(Predicate):
     predicate_name = "choose"
 
@@ -121,6 +121,7 @@ class Choose(Predicate):
     def get_C(self): return self.C
     def set_C(self, v): self.C = v
 
+#cella r, c contiene K pezzi di tipo T
 class OccCount(Predicate):
     predicate_name = "occ_count"
 

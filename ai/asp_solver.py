@@ -8,7 +8,7 @@ from embasp.platforms.desktop.desktop_handler import DesktopHandler
 
 from ai.asp_predicates import Empty, Occ, OccType, OccCount, Opt, OptOrient, OptSize, OptPiece, Choose
 
-
+# Estrae l'ultima mossa choose(O,R,C) da una stringa, se presente. Utile come fallback se il parsing degli answer set fallisce.
 def _extract_choose_from_string(s):
     matches = re.findall(r"choose\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)", s)
     if not matches:
@@ -27,7 +27,7 @@ class CakeSortASPSolver:
             raise FileNotFoundError("DLV2 non trovato: " + self.solver_path)
         if not os.path.exists(self.encoding_path):
             raise FileNotFoundError("Encoding non trovata: " + self.encoding_path)
-
+        #handler  che comunica col solver
         self.handler = DesktopHandler(DLV2DesktopService(self.solver_path))
 
         mapper = ASPMapper.get_instance()
@@ -41,6 +41,7 @@ class CakeSortASPSolver:
         mapper.register_class(OptPiece)
         mapper.register_class(Choose)
 
+#legge il file asp e lo restituisce come stringa, per poi aggiungerlo al programma di input da dare al solver
     def _read_encoding(self):
         with open(self.encoding_path, "r", encoding="utf-8") as f:
             return f.read()
@@ -52,9 +53,11 @@ class CakeSortASPSolver:
         enc = self._read_encoding()
         program.add_program(enc)
 
+#aggiunge domini della griglia
         program.add_program("row(0..{}).".format(state.rows - 1))
         program.add_program("col(0..{}).".format(state.cols - 1))
 
+#scorre la griglia e aggiunge fatti per celle vuote, occupate, tipi di pezzi e conteggi
         for r in range(state.rows):
             for c in range(state.cols):
                 plate = state.grid[r][c]
@@ -84,8 +87,10 @@ class CakeSortASPSolver:
                             oc.set_K(piece.count)
                             program.add_object_input(oc)
 
+#lista vuota che prenderà indici di opzioni valide
         valid_solver_indices = []
 
+#scorre opzioni e controlla se c'è posto sulla griglia, se i la mette nella lista
         for oi, opt in enumerate(current_options):
             has_legal = False
             for r in range(state.rows):
@@ -103,10 +108,11 @@ class CakeSortASPSolver:
 
             valid_solver_indices.append(oi)
 
+#registra opzione nel programma asp
             op = Opt()
             op.set_O(oi)
             program.add_object_input(op)
-
+#verifica l'orientamento dell'opzione e lo registra come fatto
             orient = opt.get("orientation", "NONE")
             if orient == "H":
                 orc = "h"
@@ -119,12 +125,12 @@ class CakeSortASPSolver:
             oo.set_O(oi)
             oo.set_OR(orc)
             program.add_object_input(oo)
-
+#conta quanti piatti ha l'opzione
             osz = OptSize()
             osz.set_O(oi)
             osz.set_S(len(opt["plates"]))
             program.add_object_input(osz)
-
+#registra il contenuto di ogni piatto
             for pi, plate_obj in enumerate(opt["plates"]):
                 for piece in plate_obj.pieces:
                     if piece.count > 0:
@@ -141,7 +147,7 @@ class CakeSortASPSolver:
             return None
 
         self.handler.add_program(program)
-
+#lancia il solver e prende gli answer set
         answer_sets = self.handler.start_sync()
         ans_str = answer_sets.get_answer_sets_string()
 
@@ -150,6 +156,7 @@ class CakeSortASPSolver:
             print(ans_str)
             print("==================")
 
+#tengono traccia della miglior mossa trovata
         best = None
         best_score = -1
 
@@ -157,8 +164,8 @@ class CakeSortASPSolver:
             oas = answer_sets.get_answer_sets()
             for ans in oas:
                 for atom in ans.get_atoms():
-                    if isinstance(atom, Choose):
-                        candidate = (atom.get_O(), atom.get_R(), atom.get_C())
+                    if isinstance(atom, Choose):#filtra atomi choose
+                        candidate = (atom.get_O(), atom.get_R(), atom.get_C()) #estrae i valori e li mette in una tupla
                         score = self._evaluate_move(state, current_options, candidate)
                         if score > best_score:
                             best_score = score
@@ -167,10 +174,11 @@ class CakeSortASPSolver:
             if debug:
                 print("Errore parsing:", ex)
 
+#se non trova nulla, prova ad estrarre una mossa choose direttamente dalla stringa di output
         if best is None:
             best = _extract_choose_from_string(ans_str)
 
-        # Validazione
+#controlla se l'opzione è nella lista e se è legale
         if best is not None:
             oi, r, c = best
             if oi < len(current_options):
@@ -178,7 +186,7 @@ class CakeSortASPSolver:
                     if debug:
                         print("Mossa choose({},{},{}) illegale!".format(oi, r, c))
                     best = None
-
+#ennesimo fallback, se non c'è nulla di valido, prova a valutare tutte le mosse legali e scegliere la migliore secondo la funzione di valutazione
         if best is None:
             best = self._fallback_smart(state, current_options)
 
@@ -188,10 +196,10 @@ class CakeSortASPSolver:
         return best
 
     def _evaluate_move(self, state, current_options, move):
-        oi, r, c = move
+        oi, r, c = move#prende la mossa e la divide in opzione, riga e colonna
         if oi >= len(current_options):
             return -1
-
+#verifica se la mossa è legale
         opt = current_options[oi]
         if not state.can_place_block(opt, r, c):
             return -1
@@ -207,6 +215,7 @@ class CakeSortASPSolver:
         else:
             positions = [(r, c)]
 
+#raccoglie in set tutti  i tipi di pezzi che ci sono
         types_in_grid = set()
         for rr in range(state.rows):
             for cc in range(state.cols):
@@ -214,13 +223,13 @@ class CakeSortASPSolver:
                 if pl:
                     for piece in pl.pieces:
                         types_in_grid.add(piece.tipo)
-
+#stessa cosa ma per opzione da piazzare
         option_types = set()
         for plate_obj in plates:
             for piece in plate_obj.pieces:
                 if piece.count > 0:
                     option_types.add(piece.tipo)
-
+#confronta i tipi nella griglia con quelli del'opzione, la mossa è inutile
         is_useless = bool(types_in_grid) and option_types.isdisjoint(types_in_grid)
 
         if is_useless:
@@ -244,7 +253,7 @@ class CakeSortASPSolver:
                 score += 20
             # Non ha senso calcolare altro per una mossa inutile
             return score
-
+#condizioone attuale della griglia: totale celle, occupate, libere e rapporto di occupazione
         total_cells = state.rows * state.cols
         occupied = sum(1 for rr in range(state.rows) for cc in range(state.cols) if state.grid[rr][cc] is not None)
         free_cells = total_cells - occupied
@@ -253,7 +262,6 @@ class CakeSortASPSolver:
         # Quante celle libere restano DOPO questa mossa
         new_plates_count = len(positions)
         free_after = free_cells - new_plates_count
-
         if free_after <= 2:
             score -= 200  # quasi game over, fortissima penalità
         elif free_after <= 4:
@@ -266,7 +274,7 @@ class CakeSortASPSolver:
             pressure_bonus = 30
         if occupancy_ratio >= 0.75:
             pressure_bonus = 60
-
+#totale pezzi per tipo portati dall'opzione
         types_brought = {}
         for pi, plate_obj in enumerate(plates):
             for piece in plate_obj.pieces:
@@ -287,7 +295,7 @@ class CakeSortASPSolver:
                 neighbor = state.grid[nr][nc]
                 if neighbor is None:
                     continue
-
+#per ogni piatto cerca lo stesso tipo nel vicino, se c'è -->merge
                 for piece in plate_obj.pieces:
                     np = neighbor.get_piece(piece.tipo)
                     if np is not None:
@@ -316,10 +324,10 @@ class CakeSortASPSolver:
 
         if len(types_brought) == 1:
             score += 10
-
+#premia opzione con piu pezzi
         total_slices = sum(types_brought.values())
         score += total_slices * 2
-
+#controlla se il blocco ha almeno un vicino occupato
         has_any_neighbor = False
         for pr, pc in positions:
             for dr, dc in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
@@ -336,7 +344,7 @@ class CakeSortASPSolver:
 
         if occupied > 0 and not has_any_neighbor:
             score -= 20
-
+#premia posizionamento verso il centro
         center_r = state.rows / 2.0
         center_c = state.cols / 2.0
         for pr, pc in positions:
@@ -345,7 +353,7 @@ class CakeSortASPSolver:
                 score += 5
             elif dist <= 2.5:
                 score += 2
-
+#set con celle occupate
         occupied_set = set()
         for rr in range(state.rows):
             for cc in range(state.cols):
@@ -353,7 +361,7 @@ class CakeSortASPSolver:
                     occupied_set.add((rr, cc))
         for pos in positions:
             occupied_set.add(pos)
-
+#calcola quanti slot doppi (orizzontali o verticali) rimangono dopo la mossa, più ce ne sono meglio è per la sopravvivenza a lungo termine
         double_slots = 0
         for rr in range(state.rows):
             for cc in range(state.cols):
@@ -372,6 +380,7 @@ class CakeSortASPSolver:
 
         return score
 
+#metodo chiamato solo quando il solver non ha prodotto nulla
     def _fallback_smart(self, state, current_options):
         best = None
         best_score = -999
