@@ -30,7 +30,6 @@ class Occ(Predicate):
 
 
 class OccType(Predicate):
-    """occ_type(R, C, T) — la cella (R,C) contiene fette di tipo T."""
     predicate_name = "occ_type"
 
     def __init__(self):
@@ -123,7 +122,6 @@ class Choose(Predicate):
     def set_C(self, v): self.C = v
 
 class OccCount(Predicate):
-    """occ_count(R, C, T, K) — la cella (R,C) ha K fette di tipo T."""
     predicate_name = "occ_count"
 
     def __init__(self):

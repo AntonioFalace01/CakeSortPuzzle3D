@@ -1,15 +1,11 @@
-% =============================================================
-% CakeSort AI
-% =============================================================
-
 % -------------------------------------------------------------
-% BASE: celle e candidati
+%celle e candidati
 % -------------------------------------------------------------
 cell(R,C) :- row(R), col(C).
 cand(O,R,C) :- opt(O), row(R), col(C).
 
 % -------------------------------------------------------------
-% Posizioni piatti (anchor + celle coperte)
+% Posizioni piatti a singola e doppia opzione
 % -------------------------------------------------------------
 plate_pos(O,R,C,0,R,C) :- cand(O,R,C), opt_orient(O,n).
 
@@ -19,6 +15,7 @@ plate_pos(O,R,C,1,R,C2) :- cand(O,R,C), opt_orient(O,h), C2 = C + 1, col(C2).
 plate_pos(O,R,C,0,R,C)  :- cand(O,R,C), opt_orient(O,v).
 plate_pos(O,R,C,1,R2,C) :- cand(O,R,C), opt_orient(O,v), R2 = R + 1, row(R2).
 
+% definisce che le celle rp,cp sono coperte
 covers(O,R,C,Rp,Cp) :- plate_pos(O,R,C,_,Rp,Cp).
 
 % -------------------------------------------------------------
@@ -37,11 +34,12 @@ legal(O,R,C) :- cand(O,R,C), not illegal(O,R,C).
 % -------------------------------------------------------------
 choose(O,R,C) | not_choose(O,R,C) :- legal(O,R,C).
 
-% Non scegliere più di una mossa (tre constraint separati, DLV2-safe)
+% Non scegliere più di una mossa (tre constraint separati)
 :- choose(O1,R1,C1), choose(O2,R2,C2), O1 != O2.
 :- choose(O1,R1,C1), choose(O1,R2,C2), R1 != R2.
 :- choose(O1,R1,C1), choose(O1,R1,C2), C1 != C2.
 
+%obbliga a scegliere almeno una mossa legale, altrimenti elimina l'answer set
 has_choice :- choose(_,_,_).
 :- not has_choice.
 
@@ -64,6 +62,7 @@ type_in_opt(O,T)     :- type_in_plate(O,_,T).
 two_types_in_opt(O) :- type_in_opt(O,T1), type_in_opt(O,T2), T1 != T2.
 pure_opt(O)         :- opt(O), not two_types_in_opt(O).
 
+%calcola il totale di fette portate da un opzione
 tot(O,S) :- opt(O), S = #sum{K,P,T : opt_piece(O,P,T,K)}.
 
 % -------------------------------------------------------------
@@ -85,6 +84,8 @@ direct_match(O,R,C,P,T) :-
     occ_type(Rn,Cn,T).
 
 has_match(O,R,C)        :- direct_match(O,R,C,_,_).
+
+%conta quanti tipi distinti vengono matchati
 match_count(O,R,C,N)    :- choose(O,R,C),
                             N = #count{T : direct_match(O,R,C,_,T)}.
 
@@ -192,8 +193,8 @@ grid_pressure :- total_occupied(Occ), total_cells(Tot), Occ * 10 >= Tot * 6.
 grid_critical :- total_occupied(Occ), total_cells(Tot), Occ * 4 >= Tot * 3.
 
 % -------------------------------------------------------------
-% Anti-Block (dal v2, corretto):
-% "spazio vitale" = cella libera adiacente a una torta quasi pronta
+% Anti-Block
+% "spazio vitale"  cella libera adiacente a una torta quasi pronta
 % Una torta è quasi pronta se ha >= 4 fette dello stesso tipo in cella
 % -------------------------------------------------------------
 near_complete_cell(R,C,T) :- occ_count(R,C,T,K), K >= 4, K < 6.
@@ -243,10 +244,10 @@ min_dist_center(O,R,C,MD) :-
     MD = #min{D : dist_center(O,R,C,D)}.
 
 % =============================================================
-% WEAK CONSTRAINTS — gerarchia finale
+% WEAK CONSTRAINTS
 % =============================================================
 
-% @14: EMERGENZA — griglia critica, non liberare spazio = morte
+% @14: EMERGENZA — griglia critica,liberare spazio
 :~ choose(O,R,C), grid_critical, not will_free_space(O,R,C). [100@14,O,R,C]
 
 % @13: ANTI-BLOCK — non murare torte quasi complete altrui

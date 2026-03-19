@@ -21,7 +21,7 @@ class CakeSortASPSolver:
     def __init__(self, project_root):
         self.project_root = project_root
         self.solver_path = os.path.join(project_root, "Solvers", "dlv2.exe")
-        self.encoding_path = os.path.join(project_root, "asp", "cakesort_easy.lp")
+        self.encoding_path = os.path.join(project_root, "asp", "cakesort_ia.lp")
 
         if not os.path.exists(self.solver_path):
             raise FileNotFoundError("DLV2 non trovato: " + self.solver_path)
@@ -55,9 +55,6 @@ class CakeSortASPSolver:
         program.add_program("row(0..{}).".format(state.rows - 1))
         program.add_program("col(0..{}).".format(state.cols - 1))
 
-        # --------------------------
-        # 1) Fatti griglia — con conteggio fette
-        # --------------------------
         for r in range(state.rows):
             for c in range(state.cols):
                 plate = state.grid[r][c]
@@ -87,9 +84,6 @@ class CakeSortASPSolver:
                             oc.set_K(piece.count)
                             program.add_object_input(oc)
 
-        # --------------------------
-        # 2) Fatti opzioni
-        # --------------------------
         valid_solver_indices = []
 
         for oi, opt in enumerate(current_options):
@@ -156,9 +150,6 @@ class CakeSortASPSolver:
             print(ans_str)
             print("==================")
 
-        # --------------------------
-        # 3) Estrai choose — prova TUTTI gli answer set
-        # --------------------------
         best = None
         best_score = -1
 
@@ -188,7 +179,6 @@ class CakeSortASPSolver:
                         print("Mossa choose({},{},{}) illegale!".format(oi, r, c))
                     best = None
 
-        # Fallback intelligente
         if best is None:
             best = self._fallback_smart(state, current_options)
 
@@ -217,9 +207,6 @@ class CakeSortASPSolver:
         else:
             positions = [(r, c)]
 
-        # ----------------------------------------------------------------
-        # BLOCCO: opzione inutile (nessun tipo in comune con la griglia)
-        # ----------------------------------------------------------------
         types_in_grid = set()
         for rr in range(state.rows):
             for cc in range(state.cols):
@@ -257,19 +244,16 @@ class CakeSortASPSolver:
                 score += 20
             # Non ha senso calcolare altro per una mossa inutile
             return score
-        # ----------------------------------------------------------------
 
-        # ---- Calcolo pressione griglia ----
         total_cells = state.rows * state.cols
         occupied = sum(1 for rr in range(state.rows) for cc in range(state.cols) if state.grid[rr][cc] is not None)
         free_cells = total_cells - occupied
         occupancy_ratio = occupied / total_cells
 
-        # Quante celle libere restano DOPO questa mossa (senza contare merge)
+        # Quante celle libere restano DOPO questa mossa
         new_plates_count = len(positions)
         free_after = free_cells - new_plates_count
 
-        # ---- Penalità sopravvivenza ----
         if free_after <= 2:
             score -= 200  # quasi game over, fortissima penalità
         elif free_after <= 4:
@@ -277,22 +261,18 @@ class CakeSortASPSolver:
         elif free_after <= 6:
             score -= 30
 
-        # Bonus sopravvivenza: se la griglia è sotto pressione,
-        # premiare mosse che possono liberare spazio (completamenti)
         pressure_bonus = 0
         if occupancy_ratio >= 0.6:
             pressure_bonus = 30
         if occupancy_ratio >= 0.75:
             pressure_bonus = 60
 
-        # ---- Tipi portati dall'opzione ----
         types_brought = {}
         for pi, plate_obj in enumerate(plates):
             for piece in plate_obj.pieces:
                 if piece.count > 0:
                     types_brought[piece.tipo] = types_brought.get(piece.tipo, 0) + piece.count
 
-        # ---- Controlla vicini ----
         can_complete_any = False
         for idx, (pr, pc) in enumerate(positions):
             plate_obj = plates[idx] if idx < len(plates) else plates[0]
@@ -334,15 +314,12 @@ class CakeSortASPSolver:
         if occupancy_ratio >= 0.75 and not can_complete_any:
             score -= 50
 
-        # ---- Opzione pura ----
         if len(types_brought) == 1:
             score += 10
 
-        # ---- Bonus fette ----
         total_slices = sum(types_brought.values())
         score += total_slices * 2
 
-        # ---- Isolamento ----
         has_any_neighbor = False
         for pr, pc in positions:
             for dr, dc in [(0, 1), (1, 0), (0, -1), (-1, 0)]:
@@ -360,7 +337,6 @@ class CakeSortASPSolver:
         if occupied > 0 and not has_any_neighbor:
             score -= 20
 
-        # ---- Centralità ----
         center_r = state.rows / 2.0
         center_c = state.cols / 2.0
         for pr, pc in positions:
@@ -370,7 +346,6 @@ class CakeSortASPSolver:
             elif dist <= 2.5:
                 score += 2
 
-        # ---- Bonus: mossa che mantiene spazio per blocchi doppi ----
         occupied_set = set()
         for rr in range(state.rows):
             for cc in range(state.cols):
@@ -398,10 +373,6 @@ class CakeSortASPSolver:
         return score
 
     def _fallback_smart(self, state, current_options):
-        """
-        Fallback: valuta TUTTE le mosse possibili e scegli la migliore.
-        Non segue l'ordine delle opzioni.
-        """
         best = None
         best_score = -999
 
