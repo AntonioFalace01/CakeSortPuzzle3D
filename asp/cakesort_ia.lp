@@ -243,9 +243,6 @@ min_dist_center(O,R,C,MD) :-
     choose(O,R,C),
     MD = #min{D : dist_center(O,R,C,D)}.
 
-% =============================================================
-% WEAK CONSTRAINTS
-% =============================================================
 
 % @14: EMERGENZA — griglia critica,liberare spazio
 :~ choose(O,R,C), grid_critical, not will_free_space(O,R,C). [100@14,O,R,C]
