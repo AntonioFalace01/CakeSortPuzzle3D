@@ -346,6 +346,9 @@ class Game:
             self.active_slice = step["anim"]
             self.display_grid = step["grid_during"]
             self._pending_grid_after = step["grid_after"]
+            # se il primo step è già un fantasma (anim None), avanza subito
+            if self.active_slice is None:
+                self._skip_ghost_steps()
         else:
             self.active_slice = None
             self.display_grid = None
@@ -354,6 +357,26 @@ class Game:
         self._completed_cake_delay = None
         self.completion_effects = []
         self._burst_phase = False
+
+    def _skip_ghost_steps(self):
+        """Consuma dalla coda tutti gli step con anim=None, aggiornando
+        la griglia visiva, e si ferma al primo step reale o alla fine."""
+        while self.active_slice is None and self.slice_queue:
+            # applica la grid_after dello step fantasma appena consumato
+            if self._pending_grid_after is not None:
+                self.display_grid = self._pending_grid_after
+                self._pending_grid_after = None
+
+            step = self.slice_queue.pop(0)
+            self.active_slice = step["anim"]
+            self.display_grid = step["grid_during"]
+            self._pending_grid_after = step["grid_after"]
+
+        # se siamo ancora None e la coda è vuota, puliamo
+        if self.active_slice is None and not self.slice_queue:
+            if self._pending_grid_after is not None:
+                self.display_grid = self._pending_grid_after
+                self._pending_grid_after = None
 
     def _advance_slice_queue(self):
         if self._pending_grid_after is not None:
@@ -389,6 +412,21 @@ class Game:
         self._start_next_slice_or_finalize()
 
     def _start_next_slice_or_finalize(self):
+        # ── FIX BUG 2: salta step fantasma (anim=None) aggiornando la griglia ──
+        while self.slice_queue:
+            step = self.slice_queue[0]
+            if step["anim"] is not None:
+                break
+            # step fantasma: aggiorna solo la griglia visiva e avanza
+            self.slice_queue.pop(0)
+            self.display_grid = step["grid_during"]
+            self._pending_grid_after = step["grid_after"]
+            # applica subito la grid_after del fantasma prima del prossimo step
+            if self._pending_grid_after is not None:
+                self.display_grid = self._pending_grid_after
+                self._pending_grid_after = None
+        # ────────────────────────────────────────────────────────────────────────
+
         if self.slice_queue:
             step = self.slice_queue.pop(0)
             self.active_slice = step["anim"]
@@ -517,7 +555,7 @@ class Game:
                     Assets.draw_plate(window, plate, center_x, center_y, plate_size=plate_size)
 
         # Animazione slice attiva
-        if self.active_slice:
+        if self.active_slice is not None:
             self.active_slice.update(dt)
             self.active_slice.draw(window)
             if not self.active_slice.alive:

@@ -843,6 +843,24 @@ class GameState:
 
                 target_pure = max(pure_neighbors, key=piece_count_at)
 
+                # ── FIX BUG 1: prima scarica gli ALTRI tipi del bridge bridge ──
+                # su vicini che li hanno già, per liberare slot nel bridge
+                bridge_plate = self.grid[pr][pc]
+                if bridge_plate:
+                    for other_piece in list(bridge_plate.pieces):
+                        if other_piece.tipo == tipo:
+                            continue
+                        # cerca un vicino adiacente che ha già quel tipo
+                        for anr, anc in self.neighbors4(pr, pc):
+                            if self._is_marked_to_remove((anr, anc)):
+                                continue
+                            apl = self.grid[anr][anc]
+                            if apl and apl.get_piece(other_piece.tipo) is not None:
+                                self._move_tipo((pr, pc), (anr, anc), other_piece.tipo)
+                                break
+                # ─────────────────────────────────────────────────────────────
+
+                # Poi attira i vicini misti sul bridge
                 for mn in mixed_neighbors:
                     if self._is_marked_to_remove(mn):
                         continue
