@@ -1,7 +1,10 @@
-import  pygame
+import pygame
+import math
+import random
 
 import assets
 from button import Button
+from game_over_overlay import GameOverOverlay
 from game_panel import Game
 from menu_start import MenuPause
 from particelle import GestoreParticelle
@@ -22,9 +25,8 @@ fps = 60
 pygame.display.set_icon(pygame.image.load("Sprites/icon.png"))
 window = pygame.display.set_mode((900, 700))
 assets.Assets.init()
+
 try:
-    img_game_over = pygame.image.load("Sprites/Background/game_over.png")
-    sfondo_game_over = pygame.transform.scale(img_game_over, (900, 700))
     img_menu_start = pygame.image.load("Sprites/Background/menu_start.png")
     sfondo_menu_start = pygame.transform.scale(img_menu_start, (900, 700))
     img_game_panel = pygame.image.load("Sprites/Background/game_panel.png")
@@ -32,8 +34,7 @@ try:
     img_menu_pause = pygame.image.load("Sprites/Background/menu_pausa.png")
     sfondo_menu_pause = pygame.transform.scale(img_menu_pause, (900, 700))
 except FileNotFoundError:
-    #se manca uno dei file immagine stampa errore e usa sfondo vuoto
-    print("ERRORE: Manca sprites/menu.png")
+    print("ERRORE: Manca uno degli sprite di sfondo")
 
 def main(window):
     clock = pygame.time.Clock()
@@ -41,15 +42,20 @@ def main(window):
     run = True
     stato = "menu_start"
     settings_origin = "menu_start"
-    menu_start = MenuStart()
-    game_panel= Game()
-    menu_pause = MenuPause()
-    button_restart = Button(345, 350, 220, 120, "Sprites/Button/button_restart.png")
+    menu_start  = MenuStart()
+    game_panel  = Game()
+    menu_pause  = MenuPause()
+
+    button_restart = Button(345, 490, 220, 120, "Sprites/Button/button_restart.png")
+
+    game_over_overlay = None
 
     particelle = GestoreParticelle(60, 700, 500)
     sound = SoundManager()
+
     while run:
-        clock.tick(fps)
+        dt = clock.tick(fps) / 1000.0
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
@@ -65,17 +71,19 @@ def main(window):
                         run = False
                         break
                     elif nuovo_stato == "settings":
-                        stato= "settings"
-                        settings_origin= "menu_start"
+                        stato = "settings"
+                        settings_origin = "menu_start"
 
             elif stato == "game":
-                if event.type in (pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP, pygame.MOUSEMOTION, pygame.KEYDOWN):
+                if event.type in (pygame.MOUSEBUTTONDOWN, pygame.MOUSEBUTTONUP,
+                                  pygame.MOUSEMOTION, pygame.KEYDOWN):
                     mouse_pos = event.pos if hasattr(event, "pos") else pygame.mouse.get_pos()
                     nuovo_stato = game_panel.gest_eventi(mouse_pos, event)
                     if nuovo_stato == "pause_game":
                         stato = "pause_game"
                     elif nuovo_stato == "game_over":
                         stato = "game_over"
+                        game_over_overlay = None
 
             elif stato == "pause_game":
                 pygame.mixer.music.pause()
@@ -89,12 +97,11 @@ def main(window):
                         run = False
                         break
                     elif nuovo_stato == "settings":
-                        stato= "settings"
+                        stato = "settings"
                         settings_origin = "pause_game"
 
             elif stato == "settings":
                 nuovo_stato = sound.gest_eventi(event)
-
                 if nuovo_stato == "resume_settings":
                     if settings_origin == "menu_start":
                         stato = "menu_start"
@@ -109,30 +116,38 @@ def main(window):
                     mouse_pos = event.pos
                     if button_restart.is_clicked(mouse_pos):
                         game_panel = Game()
+                        game_over_overlay = None
                         stato = "game"
 
+        # ── RENDERING ─────────────────────────────────────────────────────────
 
         if stato == "menu_start":
-            window.blit(sfondo_menu_start,(0,0))
+            window.blit(sfondo_menu_start, (0, 0))
             particelle.update_and_draw(window)
             menu_start.draw(window)
 
-        elif stato== "game":
-            window.blit (sfondo_game_panel,(0,0))
+        elif stato == "game":
+            window.blit(sfondo_game_panel, (0, 0))
             game_panel.draw(window)
             if game_panel.ai_game_over:
                 stato = "game_over"
+                game_over_overlay = None
 
         elif stato == "pause_game":
-            window.blit(sfondo_menu_pause,(0,0))
+            window.blit(sfondo_menu_pause, (0, 0))
             menu_pause.draw(window)
 
         elif stato == "settings":
-            window.blit(sfondo_menu_pause,(0,0))
+            window.blit(sfondo_menu_pause, (0, 0))
             sound.draw(window)
 
         elif stato == "game_over":
-            window.blit(sfondo_game_over, (0, 0))
+            window.blit(sfondo_game_panel, (0, 0))
+            game_panel.draw(window)
+            if game_over_overlay is None:
+                game_over_overlay = GameOverOverlay(game_panel.state.score)
+            game_over_overlay.update(dt)
+            game_over_overlay.draw(window)
             button_restart.draw(window)
 
         pygame.display.update()
@@ -141,7 +156,5 @@ def main(window):
     quit()
 
 
-
 if __name__ == "__main__":
     main(window)
-
