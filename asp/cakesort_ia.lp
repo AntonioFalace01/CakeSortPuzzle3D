@@ -169,12 +169,6 @@ min_dist_center(O,R,C,MD) :-
     choose(O,R,C),
     MD = #min{D : dist_center(O,R,C,D)}.
 
-% -------------------------------------------------------------
-% FINISHER
-% -------------------------------------------------------------
-finishes_big(O,R,C) :-
-    sum_type(O,R,C,T,S),
-    S >= 6.
 
 % -------------------------------------------------------------
 % VINCOLI DEBOLI
@@ -195,8 +189,6 @@ finishes_big(O,R,C) :-
 :~ fragmented_space(O,R,C).                                     [20@9,O,R,C]
 
 :~ choose(O,R,C), min_dist_center(O,R,C,MD), MD > 2.            [3@3,O,R,C]
-
-:~ not finishes_big(O,R,C), can_complete(O,R,C).                [10@10,O,R,C]
 
 :~ choose(O,R,C), pure_opt(O).                                  [-5@2,O,R,C]
 
