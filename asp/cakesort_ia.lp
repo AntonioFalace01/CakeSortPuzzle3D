@@ -177,7 +177,7 @@ finishes_big(O,R,C) :-
     S >= 6.
 
 % -------------------------------------------------------------
-% VINCOLI DEBOLI PRO
+% VINCOLI DEBOLI
 % -------------------------------------------------------------
 :~ choose(O,R,C), not can_complete(O,R,C).                      [80@11,O,R,C]
 :~ choose(O,R,C), can_complete(O,R,C), not creates_space(O,R,C). [20@10,O,R,C]
