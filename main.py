@@ -118,6 +118,7 @@ def main(window):
                         game_panel = Game()
                         game_over_overlay = None
                         stato = "game"
+                        pygame.mixer.music.play()
 
         # ── RENDERING ─────────────────────────────────────────────────────────
 
@@ -145,7 +146,9 @@ def main(window):
             window.blit(sfondo_game_panel, (0, 0))
             game_panel.draw(window)
             if game_over_overlay is None:
+                pygame.mixer.music.stop()
                 game_over_overlay = GameOverOverlay(game_panel.state.score)
+                SFX.game_over.play()
             game_over_overlay.update(dt)
             game_over_overlay.draw(window)
             button_restart.draw(window)
