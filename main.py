@@ -118,7 +118,7 @@ def main(window):
                         game_panel = Game()
                         game_over_overlay = None
                         stato = "game"
-                        pygame.mixer.music.play()
+                        pygame.mixer.music.play(-1)
 
         # ── RENDERING ─────────────────────────────────────────────────────────
 
