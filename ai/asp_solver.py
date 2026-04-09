@@ -14,11 +14,11 @@ TYPE_MAP = {
     "V": "v",
     "L": "l",
     "A": "a",
+
     "B": "b",
     "D": "d",
     "E": "e",
 }
-
 
 def _extract_choose_from_string(s: str):
     """Estrae l'ultima mossa choose(O,R,C) da una stringa, se presente."""
@@ -158,11 +158,11 @@ class CakeSortASPSolver:
                 if not enc.endswith("\n"):
                     f.write("\n")
                 f.write(self._facts_debug_text)
-            print(f"[AI] Programma ASP scritto in: {tmp_path}")
-            print("=== PROGRAMMA ASP COMPLETO (encoding + fatti) ===")
-            print(enc)
-            print(self._facts_debug_text)
-            print("=== FINE PROGRAMMA COMPLETO ===")
+            #print(f"[AI] Programma ASP scritto in: {tmp_path}")
+            #print("=== PROGRAMMA ASP COMPLETO (encoding + fatti) ===")
+            #print(enc)
+            #print(self._facts_debug_text)
+            #print("=== FINE PROGRAMMA COMPLETO ===")
             # Per vedere subito errori sintattici DLV2, puoi decommentare:
             # self.debug_run_dlv2_file(tmp_path)
 

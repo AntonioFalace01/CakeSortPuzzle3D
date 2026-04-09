@@ -30,10 +30,6 @@ legal(O,R,C) :- cand(O,R,C), not illegal(O,R,C).
 choose(O,R,C) | not_choose(O,R,C) :- legal(O,R,C).
 :- #count { O,R,C : choose(O,R,C) } != 1.
 
-
-
-
-
 % -------------------------------------------------------------
 % VICINI ESTERNI
 % -------------------------------------------------------------
@@ -210,6 +206,55 @@ min_dist_center(O,R,C,MD) :-
     choose(O,R,C),
     MD = #min{D : dist_center(O,R,C,D)}.
 
+% -------------------------------------------------------------
+% BRIDGE / COLLEGAMENTI TRA GRUPPI DELLO STESSO TIPO
+% -------------------------------------------------------------
+
+has_type(R,C,T) :- occ_type(R,C,T).
+
+neigh_has_type(R,C,Rn,Cn,T) :-
+    has_type(R,C,T),
+    Rn = R+1, Cn = C, row(Rn), col(Cn), has_type(Rn,Cn,T).
+
+neigh_has_type(R,C,Rn,Cn,T) :-
+    has_type(R,C,T),
+    Rn = R-1, Cn = C, row(Rn), col(Cn), has_type(Rn,Cn,T).
+
+neigh_has_type(R,C,Rn,Cn,T) :-
+    has_type(R,C,T),
+    Rn = R, Cn = C+1, row(Rn), col(Cn), has_type(Rn,Cn,T).
+
+neigh_has_type(R,C,Rn,Cn,T) :-
+    has_type(R,C,T),
+    Rn = R, Cn = C-1, row(Rn), col(Cn), has_type(Rn,Cn,T).
+
+pos_with_type(O,R,C,Rp,Cp,T) :-
+    choose(O,R,C),
+    plate_pos(O,R,C,_,Rp,Cp),
+    type_in_opt(O,T).
+
+bridge_pure_mixed(O,R,C,T) :-
+    choose(O,R,C),
+    pos_with_type(O,R,C,Rp,Cp,T),
+    ext_neigh(O,R,C,Rp1,Cp1),
+    cell_pure(Rp1,Cp1),
+    occ_type(Rp1,Cp1,T),
+    ext_neigh(O,R,C,Rp2,Cp2),
+    Rp2 != Rp1,
+    Cp2 != Cp1,
+    occ_type(Rp2,Cp2,T),
+    not cell_pure(Rp2,Cp2).
+
+bridge_two_groups(O,R,C,T) :-
+    choose(O,R,C),
+    pos_with_type(O,R,C,Rp,Cp,T),
+    2 <= #count { Rn,Cn :
+        ext_neigh(O,R,C,Rn,Cn),
+        occ_type(Rn,Cn,T)
+    }.
+
+:~ choose(O,R,C), bridge_pure_mixed(O,R,C,T). [-15@6,O,R,C,T]
+:~ choose(O,R,C), bridge_two_groups(O,R,C,T). [-10@6,O,R,C,T]
 
 % -------------------------------------------------------------
 % VINCOLI DEBOLI
