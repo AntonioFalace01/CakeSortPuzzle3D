@@ -293,3 +293,41 @@ grid_not_empty :- occ(_,_).
 :~ choose(O,R,C), not pure_opt(O).                                       [5@2,O,R,C]
 
 #show choose/3.
+row(0..4).
+col(0..3).
+occ(0,0).
+occ_type(0,0,s).
+occ_count(0,0,s,5).
+empty(0,1).
+empty(0,2).
+empty(0,3).
+occ(1,0).
+occ_type(1,0,c).
+occ_count(1,0,c,1).
+empty(1,1).
+empty(1,2).
+empty(1,3).
+occ(2,0).
+occ_type(2,0,v).
+occ_count(2,0,v,4).
+empty(2,1).
+empty(2,2).
+empty(2,3).
+occ(3,0).
+occ_type(3,0,c).
+occ_count(3,0,c,1).
+empty(3,1).
+empty(3,2).
+empty(3,3).
+empty(4,0).
+empty(4,1).
+empty(4,2).
+empty(4,3).
+opt(0).
+opt_orient(0,n).
+opt_size(0,1).
+opt_piece(0,0,s,1).
+opt(1).
+opt_orient(1,n).
+opt_size(1,1).
+opt_piece(1,0,s,2).

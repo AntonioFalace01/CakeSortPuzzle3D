@@ -142,7 +142,7 @@ class Game:
         available_opts = [opt for (oi, opt) in available]
         available_indices = [oi for (oi, opt) in available]
 
-        move = self.ai_solver.choose_move(self.state, available_opts, debug=False)
+        move = self.ai_solver.choose_move(self.state, available_opts, debug=True)
         if move is None:
             return False
 
@@ -743,7 +743,7 @@ class Game:
                 available_indices = [oi for (oi, opt) in available]
 
                 move = self.ai_solver.choose_move(
-                    self.state, available_opts, debug=False
+                    self.state, available_opts, debug=True
                 )
                 if move is None:
                     print("IA: nessuna mossa trovata")
