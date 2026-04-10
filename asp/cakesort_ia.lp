@@ -50,35 +50,49 @@ type_in_opt(O,T)       :- type_in_plate(O,_,T).
 
 two_types_in_opt(O)    :- type_in_opt(O,T1), type_in_opt(O,T2), T1 != T2.
 pure_opt(O)            :- opt(O), not two_types_in_opt(O).
-% Esiste almeno una coppia di tipi diversi nello stesso piatto
+
 two_types_in_plate(O,P) :-
     type_in_plate(O,P,T1),
     type_in_plate(O,P,T2),
     T1 != T2.
 
-% Piatto puro: c'è almeno un tipo, e non ci sono due tipi diversi
 pure_plate(O,P) :-
     type_in_plate(O,P,_),
     not two_types_in_plate(O,P).
 
 pure_plate_type(O,P,T) :- pure_plate(O,P), type_in_plate(O,P,T).
 
-% Esistono almeno due tipi diversi nello stesso piatto (R,C)
 two_types_in_cell(R,C) :-
     occ_type(R,C,T1),
     occ_type(R,C,T2),
     T1 != T2.
 
-% Cella "pura" se ha almeno un tipo ma non due diversi
 cell_pure(R,C) :-
     occ(R,C),
     occ_type(R,C,_),
     not two_types_in_cell(R,C).
 
-% Vicino puro del tipo T
 neighbor_pure(Rn,Cn,T) :-
     cell_pure(Rn,Cn),
     occ_type(Rn,Cn,T).
+
+% -------------------------------------------------------------
+% TIPI PRESENTI NELLA GRIGLIA
+% -------------------------------------------------------------
+grid_type(T) :- occ_type(_,_,T).
+
+opt_type_foreign(O,T) :-
+    type_in_opt(O,T),
+    not grid_type(T).
+
+all_types_foreign(O) :-
+    opt(O),
+    type_in_opt(O,_),
+    not has_grid_matching_type(O).
+
+has_grid_matching_type(O) :-
+    type_in_opt(O,T),
+    grid_type(T).
 
 % -------------------------------------------------------------
 % MATCH E COMPLETAMENTO
@@ -102,20 +116,16 @@ neighbor_has(O,R,C,P,T,Rn,Cn,Kn) :-
     occ_count(Rn,Cn,T,Kn),
     type_in_plate(O,P,T).
 
-% Somma solo il contributo che porta il blocco
 sb_type(O,R,C,T,SB) :-
     choose(O,R,C),
     direct_match(O,R,C,_,T),
     SB = #sum{ K,P : brings(O,R,C,P,T,K) }.
 
-% Somma solo il contributo già presente nei vicini
 sn_type(O,R,C,T,SN) :-
     choose(O,R,C),
     direct_match(O,R,C,_,T),
     SN = #sum{ Kn,Rn,Cn : neighbor_has(O,R,C,_,T,Rn,Cn,Kn) }.
 
-% Somma totale SB + SN (DLV2 non fa l’addizione dentro l’aggregato,
-% quindi la facciamo in una regola separata senza altri aggregati)
 sum_type(O,R,C,T,S) :-
     sb_type(O,R,C,T,SB),
     sn_type(O,R,C,T,SN),
@@ -123,6 +133,36 @@ sum_type(O,R,C,T,S) :-
 
 can_complete(O,R,C) :- sum_type(O,R,C,_,S), S >= 6.
 will_complete(O,R,C) :- can_complete(O,R,C).
+
+% -------------------------------------------------------------
+% MULTI-MERGE
+% -------------------------------------------------------------
+matched_type_count(O,R,C,N) :-
+    choose(O,R,C),
+    N = #count{ T : type_in_opt(O,T), ext_neigh(O,R,C,Rn,Cn), occ_type(Rn,Cn,T) }.
+
+multi_type_match(O,R,C) :-
+    choose(O,R,C),
+    matched_type_count(O,R,C,N),
+    N >= 2.
+
+plate0_has_match(O,R,C) :-
+    choose(O,R,C),
+    type_in_plate(O,0,T),
+    ext_neigh(O,R,C,Rn,Cn),
+    occ_type(Rn,Cn,T).
+
+plate1_has_match(O,R,C) :-
+    choose(O,R,C),
+    type_in_plate(O,1,T),
+    ext_neigh(O,R,C,Rn,Cn),
+    occ_type(Rn,Cn,T).
+
+both_plates_match(O,R,C) :-
+    choose(O,R,C),
+    opt_size(O,2),
+    plate0_has_match(O,R,C),
+    plate1_has_match(O,R,C).
 
 % -------------------------------------------------------------
 % CONSOLIDAMENTO
@@ -154,6 +194,40 @@ pure_plate_matches(O,R,C) :-
     neighbor_pure(Rn,Cn,T).
 
 % -------------------------------------------------------------
+% ISOLAMENTO DI TIPI ESTRANEI
+% -------------------------------------------------------------
+
+neighbor_incompatible_type(O,R,C,Rn,Cn,T) :-
+    choose(O,R,C),
+    ext_neigh(O,R,C,Rn,Cn),
+    occ_type(Rn,Cn,T),
+    not type_in_opt(O,T).
+
+incompatible_neigh_count(O,R,C,N) :-
+    choose(O,R,C),
+    N = #count{ Rn,Cn,T : neighbor_incompatible_type(O,R,C,Rn,Cn,T) }.
+
+useless_adjacent(O,R,C) :-
+    choose(O,R,C),
+    all_types_foreign(O),
+    incompatible_neigh_count(O,R,C,N),
+    N > 0.
+
+occupied_neigh_count(O,R,C,N) :-
+    choose(O,R,C),
+    N = #count{ Rn,Cn : ext_neigh(O,R,C,Rn,Cn), occ(Rn,Cn) }.
+
+is_isolated(O,R,C) :-
+    choose(O,R,C),
+    occupied_neigh_count(O,R,C,0).
+
+foreign_and_adjacent(O,R,C) :-
+    choose(O,R,C),
+    all_types_foreign(O),
+    occupied_neigh_count(O,R,C,N),
+    N > 0.
+
+% -------------------------------------------------------------
 % SPAZIO
 % -------------------------------------------------------------
 free_count(O,R,C,N) :-
@@ -161,6 +235,30 @@ free_count(O,R,C,N) :-
     N = #count{Rf,Cf : cell(Rf,Cf),
                         not occ(Rf,Cf),
                         not covers(O,R,C,Rf,Cf)}.
+
+total_occupied(N) :-
+    N = #count{R,C : occ(R,C)}.
+
+total_cells(N) :-
+    N = #count{R,C : row(R), col(C)}.
+
+grid_crowded :-
+    total_occupied(Occ),
+    total_cells(Tot),
+    Tot > 0,
+    Occ * 2 > Tot.
+
+grid_very_crowded :-
+    total_occupied(Occ),
+    total_cells(Tot),
+    Tot > 0,
+    Occ * 4 > Tot * 3.
+
+fragmented_space(O,R,C) :-
+    choose(O,R,C),
+    free_count(O,R,C,N),
+    N < 6,
+    not grid_crowded.
 
 fragmented_space(O,R,C) :-
     choose(O,R,C),
@@ -214,30 +312,19 @@ min_dist_center(O,R,C,MD) :-
 
 has_type(R,C,T) :- occ_type(R,C,T).
 
-neigh_has_type(R,C,Rn,Cn,T) :-
-    has_type(R,C,T),
-    Rn = R+1, Cn = C, row(Rn), col(Cn), has_type(Rn,Cn,T).
-
-neigh_has_type(R,C,Rn,Cn,T) :-
-    has_type(R,C,T),
-    Rn = R-1, Cn = C, row(Rn), col(Cn), has_type(Rn,Cn,T).
-
-neigh_has_type(R,C,Rn,Cn,T) :-
-    has_type(R,C,T),
-    Rn = R, Cn = C+1, row(Rn), col(Cn), has_type(Rn,Cn,T).
-
-neigh_has_type(R,C,Rn,Cn,T) :-
-    has_type(R,C,T),
-    Rn = R, Cn = C-1, row(Rn), col(Cn), has_type(Rn,Cn,T).
-
-pos_with_type(O,R,C,Rp,Cp,T) :-
+bridge_two_groups(O,R,C,T) :-
     choose(O,R,C),
+    type_in_opt(O,T),
     plate_pos(O,R,C,_,Rp,Cp),
-    type_in_opt(O,T).
+    2 <= #count { Rn,Cn :
+        ext_neigh(O,R,C,Rn,Cn),
+        occ_type(Rn,Cn,T)
+    }.
 
 bridge_pure_mixed(O,R,C,T) :-
     choose(O,R,C),
-    pos_with_type(O,R,C,Rp,Cp,T),
+    type_in_opt(O,T),
+    plate_pos(O,R,C,_,Rp,Cp),
     ext_neigh(O,R,C,Rp1,Cp1),
     cell_pure(Rp1,Cp1),
     occ_type(Rp1,Cp1,T),
@@ -247,40 +334,44 @@ bridge_pure_mixed(O,R,C,T) :-
     occ_type(Rp2,Cp2,T),
     not cell_pure(Rp2,Cp2).
 
-bridge_two_groups(O,R,C,T) :-
-    choose(O,R,C),
-    pos_with_type(O,R,C,Rp,Cp,T),
-    2 <= #count { Rn,Cn :
-        ext_neigh(O,R,C,Rn,Cn),
-        occ_type(Rn,Cn,T)
-    }.
-
 :~ choose(O,R,C), bridge_pure_mixed(O,R,C,T). [-15@6,O,R,C,T]
 :~ choose(O,R,C), bridge_two_groups(O,R,C,T). [-10@6,O,R,C,T]
 
 % -------------------------------------------------------------
-% VINCOLI DEBOLI
+% VINCOLI DEBOLI (ordinati per priorita')
 % -------------------------------------------------------------
-:~ choose(O,R,C), not can_complete(O,R,C).                      [80@11,O,R,C]
+:~ choose(O,R,C), not can_complete(O,R,C).                       [80@11,O,R,C]
 :~ choose(O,R,C), can_complete(O,R,C), not creates_space(O,R,C). [20@10,O,R,C]
-
 :~ choose(O,R,C), blocks_vital(O,R,C,T), not can_complete(O,R,C). [60@13,O,R,C,T]
+
+:~ choose(O,R,C), foreign_and_adjacent(O,R,C).                   [90@12,O,R,C]
+
+:~ choose(O,R,C), not multi_type_match(O,R,C).                   [35@9,O,R,C]
+
+:~ choose(O,R,C), opt_size(O,2), not both_plates_match(O,R,C).   [40@9,O,R,C]
 
 some_direct_match(O,R,C) :-
     direct_match(O,R,C,P,T).
 
-:~ choose(O,R,C), not some_direct_match(O,R,C). [15@7,O,R,C]
+:~ choose(O,R,C), not some_direct_match(O,R,C).                  [15@7,O,R,C]
 
-:~ choose(O,R,C), best_consolidation(O,R,C,M), M = 0.           [25@7,O,R,C]
-:~ choose(O,R,C), best_consolidation(O,R,C,M), M < 4.           [10@6,O,R,C]
+:~ choose(O,R,C), best_consolidation(O,R,C,M), M = 0.            [25@7,O,R,C]
+:~ choose(O,R,C), best_consolidation(O,R,C,M), M < 4.            [10@6,O,R,C]
 
-:~ choose(O,R,C), not pure_plate_matches(O,R,C).                [30@9,O,R,C]
-:~ choose(O,R,C), not pure_touch(O,R,C).                        [20@8,O,R,C]
+:~ choose(O,R,C), not pure_plate_matches(O,R,C).                 [30@9,O,R,C]
+:~ choose(O,R,C), not pure_touch(O,R,C).                         [20@8,O,R,C]
 
+% --- Spazio ---
 :~ fragmented_space(O,R,C).                                      [20@5,O,R,C]
 
-:~ choose(O,R,C), min_dist_center(O,R,C,MD), MD > 2.            [3@3,O,R,C]
+:~ choose(O,R,C), min_dist_center(O,R,C,MD), MD > 2.             [3@8,O,R,C]
 
-:~ choose(O,R,C), pure_opt(O).                                  [-5@2,O,R,C]
+% --- Opt pura (leggero bonus) ---
+:~ choose(O,R,C), pure_opt(O).                                   [-5@2,O,R,C]
+
+% (rafforza problema 1: piu' vicini incompatibili = peggio)
+:~ choose(O,R,C), incompatible_neigh_count(O,R,C,N), N >= 2.    [40@8,O,R,C]
+:~ choose(O,R,C), incompatible_neigh_count(O,R,C,N), N >= 1,
+   all_types_foreign(O).                                          [70@10,O,R,C]
 
 #show choose/3.
