@@ -165,7 +165,9 @@ free_count(O,R,C,N) :-
 fragmented_space(O,R,C) :-
     choose(O,R,C),
     free_count(O,R,C,N),
-    N < 6.
+    N < 3,
+    grid_crowded,
+    not grid_very_crowded.
 
 creates_space(O,R,C) :-
     will_complete(O,R,C).
@@ -275,7 +277,7 @@ some_direct_match(O,R,C) :-
 :~ choose(O,R,C), not pure_plate_matches(O,R,C).                [30@9,O,R,C]
 :~ choose(O,R,C), not pure_touch(O,R,C).                        [20@8,O,R,C]
 
-:~ fragmented_space(O,R,C).                                     [20@9,O,R,C]
+:~ fragmented_space(O,R,C).                                      [20@5,O,R,C]
 
 :~ choose(O,R,C), min_dist_center(O,R,C,MD), MD > 2.            [3@3,O,R,C]
 
