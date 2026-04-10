@@ -125,6 +125,7 @@ class SoundManager:
             getattr(SFX, "spawn", None),
             getattr(SFX, "complete", None),
             getattr(SFX, "unlock", None),
+            getattr(SFX, "game_over", None),
         ]
 
         for s in effects:
