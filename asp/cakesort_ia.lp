@@ -79,15 +79,12 @@ neighbor_pure(Rn,Cn,T) :-
 % -------------------------------------------------------------
 % TIPI PRESENTI NELLA GRIGLIA
 % -------------------------------------------------------------
-% Tipi che esistono gia' nella griglia
 grid_type(T) :- occ_type(_,_,T).
 
-% Un tipo dell'opzione non ha corrispondenti nella griglia
 opt_type_foreign(O,T) :-
     type_in_opt(O,T),
     not grid_type(T).
 
-% Tutti i tipi dell'opzione sono estranei alla griglia
 all_types_foreign(O) :-
     opt(O),
     type_in_opt(O,_),
@@ -138,23 +135,17 @@ can_complete(O,R,C) :- sum_type(O,R,C,_,S), S >= 6.
 will_complete(O,R,C) :- can_complete(O,R,C).
 
 % -------------------------------------------------------------
-% MULTI-MERGE: premia piatti che matchano piu' tipi distinti
-% (es. piatto misto A+B adiacente a cella-A e cella-B)
+% MULTI-MERGE
 % -------------------------------------------------------------
-
-% Tipi dell'opzione che hanno almeno un match in un vicino esterno
 matched_type_count(O,R,C,N) :-
     choose(O,R,C),
     N = #count{ T : type_in_opt(O,T), ext_neigh(O,R,C,Rn,Cn), occ_type(Rn,Cn,T) }.
 
-% Matchano almeno 2 tipi distinti con vicini diversi
 multi_type_match(O,R,C) :-
     choose(O,R,C),
     matched_type_count(O,R,C,N),
     N >= 2.
 
-% Per i blocchi doppi: entrambe le plate matchano qualcosa
-% (plate 0 e plate 1 hanno almeno un vicino con tipo compatibile)
 plate0_has_match(O,R,C) :-
     choose(O,R,C),
     type_in_plate(O,0,T),
@@ -204,43 +195,32 @@ pure_plate_matches(O,R,C) :-
 
 % -------------------------------------------------------------
 % ISOLAMENTO DI TIPI ESTRANEI
-% (problema 1: piatti non mergiabili messi adiacenti)
 % -------------------------------------------------------------
 
-% Un vicino del blocco ha un tipo non presente nell'opzione
 neighbor_incompatible_type(O,R,C,Rn,Cn,T) :-
     choose(O,R,C),
     ext_neigh(O,R,C,Rn,Cn),
     occ_type(Rn,Cn,T),
     not type_in_opt(O,T).
 
-% Conta quante coppie (vicino, tipo incompatibile) esistono
 incompatible_neigh_count(O,R,C,N) :-
     choose(O,R,C),
     N = #count{ Rn,Cn,T : neighbor_incompatible_type(O,R,C,Rn,Cn,T) }.
 
-% Penalizza se l'opzione non ha NESSUN tipo compatibile con i vicini
-% ma viene comunque messa adiacente ad essi
-% (situazione in cui tutti i tipi dell'opt sono estranei alla griglia
-%  ma la posizione e' adiacente a celle occupate)
 useless_adjacent(O,R,C) :-
     choose(O,R,C),
     all_types_foreign(O),
     incompatible_neigh_count(O,R,C,N),
     N > 0.
 
-% Conta celle occupate adiacenti al blocco
 occupied_neigh_count(O,R,C,N) :-
     choose(O,R,C),
     N = #count{ Rn,Cn : ext_neigh(O,R,C,Rn,Cn), occ(Rn,Cn) }.
 
-% Blocco isolato: nessun vicino occupato
 is_isolated(O,R,C) :-
     choose(O,R,C),
     occupied_neigh_count(O,R,C,0).
 
-% Blocco con tipi estranei e adiacente a celle occupate (nessun merge possibile)
-% e' peggio di un blocco isolato
 foreign_and_adjacent(O,R,C) :-
     choose(O,R,C),
     all_types_foreign(O),
@@ -256,46 +236,36 @@ free_count(O,R,C,N) :-
                         not occ(Rf,Cf),
                         not covers(O,R,C,Rf,Cf)}.
 
-% Celle totali occupate prima del piazzamento
 total_occupied(N) :-
     N = #count{R,C : occ(R,C)}.
 
-% Celle totali della griglia (rows * cols, ricavato dai fatti)
 total_cells(N) :-
     N = #count{R,C : row(R), col(C)}.
 
-% Griglia considerata "quasi piena": piu' di meta' occupata
 grid_crowded :-
     total_occupied(Occ),
     total_cells(Tot),
     Tot > 0,
     Occ * 2 > Tot.
 
-% Griglia molto piena: piu' di 3/4 occupata
 grid_very_crowded :-
     total_occupied(Occ),
     total_cells(Tot),
     Tot > 0,
     Occ * 4 > Tot * 3.
 
-% fragmented_space scatta solo se la griglia NON e' gia' quasi piena
-% (soglia assoluta < 6 ha senso solo a meta' partita)
 fragmented_space(O,R,C) :-
     choose(O,R,C),
     free_count(O,R,C,N),
     N < 6,
     not grid_crowded.
 
-% Quando la griglia e' quasi piena, soglia piu' bassa (< 3)
 fragmented_space(O,R,C) :-
     choose(O,R,C),
     free_count(O,R,C,N),
     N < 3,
     grid_crowded,
     not grid_very_crowded.
-
-% Quando la griglia e' molto piena il vincolo spazio non si applica affatto
-% (lascia decidere solo i merge)
 
 creates_space(O,R,C) :-
     will_complete(O,R,C).
@@ -370,47 +340,35 @@ bridge_pure_mixed(O,R,C,T) :-
 % -------------------------------------------------------------
 % VINCOLI DEBOLI (ordinati per priorita')
 % -------------------------------------------------------------
-
-% --- Priorita' 13: completamento e blocco vitale ---
 :~ choose(O,R,C), not can_complete(O,R,C).                       [80@11,O,R,C]
 :~ choose(O,R,C), can_complete(O,R,C), not creates_space(O,R,C). [20@10,O,R,C]
 :~ choose(O,R,C), blocks_vital(O,R,C,T), not can_complete(O,R,C). [60@13,O,R,C,T]
 
-% --- Problema 1: piatti estranei adiacenti a celle occupate ---
-% Forte penalita' se si mette un tipo estraneo adiacente (non isolato)
 :~ choose(O,R,C), foreign_and_adjacent(O,R,C).                   [90@12,O,R,C]
 
-% --- Problema 2 e 3: multi-merge e blocchi doppi ---
-% Premio forte per matchare piu' tipi distinti con una sola mossa
 :~ choose(O,R,C), not multi_type_match(O,R,C).                   [35@9,O,R,C]
 
-% Premio per blocchi doppi che matchano entrambe le plate
 :~ choose(O,R,C), opt_size(O,2), not both_plates_match(O,R,C).   [40@9,O,R,C]
 
-% --- Match diretto ---
 some_direct_match(O,R,C) :-
     direct_match(O,R,C,P,T).
 
 :~ choose(O,R,C), not some_direct_match(O,R,C).                  [15@7,O,R,C]
 
-% --- Consolidamento ---
 :~ choose(O,R,C), best_consolidation(O,R,C,M), M = 0.            [25@7,O,R,C]
 :~ choose(O,R,C), best_consolidation(O,R,C,M), M < 4.            [10@6,O,R,C]
 
-% --- Pure match ---
 :~ choose(O,R,C), not pure_plate_matches(O,R,C).                 [30@9,O,R,C]
 :~ choose(O,R,C), not pure_touch(O,R,C).                         [20@8,O,R,C]
 
 % --- Spazio ---
 :~ fragmented_space(O,R,C).                                      [20@5,O,R,C]
 
-% --- Centralita' ---
-:~ choose(O,R,C), min_dist_center(O,R,C,MD), MD > 2.             [3@3,O,R,C]
+:~ choose(O,R,C), min_dist_center(O,R,C,MD), MD > 2.             [3@8,O,R,C]
 
 % --- Opt pura (leggero bonus) ---
 :~ choose(O,R,C), pure_opt(O).                                   [-5@2,O,R,C]
 
-% --- Penalita' extra per tipi estranei con molti vicini incompatibili ---
 % (rafforza problema 1: piu' vicini incompatibili = peggio)
 :~ choose(O,R,C), incompatible_neigh_count(O,R,C,N), N >= 2.    [40@8,O,R,C]
 :~ choose(O,R,C), incompatible_neigh_count(O,R,C,N), N >= 1,
