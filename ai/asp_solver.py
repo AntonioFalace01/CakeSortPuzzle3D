@@ -1,32 +1,19 @@
 import os
-import re
-import subprocess
 
 from embasp.specializations.dlv2.desktop.dlv2_desktop_service import DLV2DesktopService
-from embasp.base.input_program import InputProgram
+from embasp.languages.asp.asp_input_program import ASPInputProgram
+from embasp.languages.asp.asp_mapper import ASPMapper
 from embasp.platforms.desktop.desktop_handler import DesktopHandler
+from ai.asp_predicates import (
+    Empty, Occ, OccType, OccCount,
+    Opt, OptOrient, OptSize, OptPiece,
+    Choose
+)
 
-
-# Mappa tipi logici (C,S,V,...) -> costanti ASP minuscole (c,s,v,...)
 TYPE_MAP = {
-    "C": "c",
-    "S": "s",
-    "V": "v",
-    "L": "l",
-    "A": "a",
-
-    "B": "b",
-    "D": "d",
-    "E": "e",
+    "C": "c", "S": "s", "V": "v", "L": "l", "A": "a",
+    "B": "b", "D": "d", "E": "e",
 }
-
-def _extract_choose_from_string(s: str):
-    """Estrae l'ultima mossa choose(O,R,C) da una stringa, se presente."""
-    matches = re.findall(r"choose\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)", s)
-    if not matches:
-        return None
-    last = matches[-1]
-    return int(last[0]), int(last[1]), int(last[2])
 
 
 class CakeSortASPSolver:
@@ -41,67 +28,67 @@ class CakeSortASPSolver:
             raise FileNotFoundError("Encoding non trovata: " + self.encoding_path)
 
         self.handler = DesktopHandler(DLV2DesktopService(self.solver_path))
-        self._facts_debug_text = ""
+
+        ASPMapper.get_instance().register_class(Empty)
+        ASPMapper.get_instance().register_class(Occ)
+        ASPMapper.get_instance().register_class(OccType)
+        ASPMapper.get_instance().register_class(OccCount)
+        ASPMapper.get_instance().register_class(Opt)
+        ASPMapper.get_instance().register_class(OptOrient)
+        ASPMapper.get_instance().register_class(OptSize)
+        ASPMapper.get_instance().register_class(OptPiece)
+        ASPMapper.get_instance().register_class(Choose)
 
     def _read_encoding(self) -> str:
         with open(self.encoding_path, "r", encoding="utf-8") as f:
             return f.read()
 
-    def debug_run_dlv2_file(self, instance_path: str):
-        cmd = [self.solver_path, instance_path]
-        print("[DEBUG] Eseguo:", " ".join(cmd))
-        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        out, err = proc.communicate()
-        #print("------ STDOUT DLV2 ------")
-        #print(out)
-        #print("------ STDERR DLV2 ------")
-        #print(err)
-        #print("Exit code:", proc.returncode)
-
     def choose_move(self, state, current_options, debug=False):
         self.handler.remove_all()
 
-        program = InputProgram()
+        program = ASPInputProgram()
         enc = self._read_encoding()
         program.add_program(enc)
 
-        self._facts_debug_text = ""
+        # domini — sintassi ASP pura, nessun oggetto
+        program.add_program(f"row(0..{state.rows - 1}).")
+        program.add_program(f"col(0..{state.cols - 1}).")
 
-        # domini griglia
-        fact = f"row(0..{state.rows - 1})."
-        program.add_program(fact)
-        self._facts_debug_text += fact + "\n"
-
-        fact = f"col(0..{state.cols - 1})."
-        program.add_program(fact)
-        self._facts_debug_text += fact + "\n"
-
-        # griglia: empty/occ + occ_type/occ_count
+        # griglia tramite oggetti
         for r in range(state.rows):
             for c in range(state.cols):
                 plate = state.grid[r][c]
-                print(f"[DEBUG GRID] ({r},{c}) = {'OCC' if plate is not None else 'empty'}")
                 if plate is None:
-                    fact = f"empty({r},{c})."
-                    program.add_program(fact)
-                    self._facts_debug_text += fact + "\n"
+                    e = Empty()
+                    e.set_R(r)
+                    e.set_C(c)
+                    program.add_object_input(e)
                 else:
-                    fact = f"occ({r},{c})."
-                    program.add_program(fact)
-                    self._facts_debug_text += fact + "\n"
+                    o = Occ()
+                    o.set_R(r)
+                    o.set_C(c)
+                    program.add_object_input(o)
+
                     for piece in plate.pieces:
                         if piece.count > 0:
                             t = TYPE_MAP.get(piece.tipo, piece.tipo.lower())
-                            fact = f"occ_type({r},{c},{t})."
-                            program.add_program(fact)
-                            self._facts_debug_text += fact + "\n"
-                            fact = f"occ_count({r},{c},{t},{piece.count})."
-                            program.add_program(fact)
-                            self._facts_debug_text += fact + "\n"
+
+                            ot = OccType()
+                            ot.set_R(r)
+                            ot.set_C(c)
+                            ot.set_T(t)
+                            program.add_object_input(ot)
+
+                            oc = OccCount()
+                            oc.set_R(r)
+                            oc.set_C(c)
+                            oc.set_T(t)
+                            oc.set_K(piece.count)
+                            program.add_object_input(oc)
 
         valid_solver_indices = []
 
-        # opzioni
+        # opzioni tramite oggetti
         for oi, opt in enumerate(current_options):
             has_legal = False
             for r in range(state.rows):
@@ -119,32 +106,32 @@ class CakeSortASPSolver:
 
             valid_solver_indices.append(oi)
 
-            fact = f"opt({oi})."
-            program.add_program(fact)
-            self._facts_debug_text += fact + "\n"
+            op = Opt()
+            op.set_O(oi)
+            program.add_object_input(op)
 
             orient = opt.get("orientation", "NONE")
-            if orient == "H":
-                orc = "h"
-            elif orient == "V":
-                orc = "v"
-            else:
-                orc = "n"
-            fact = f"opt_orient({oi},{orc})."
-            program.add_program(fact)
-            self._facts_debug_text += fact + "\n"
+            orc = "h" if orient == "H" else "v" if orient == "V" else "n"
+            oo = OptOrient()
+            oo.set_O(oi)
+            oo.set_OR(orc)
+            program.add_object_input(oo)
 
-            fact = f"opt_size({oi},{len(opt['plates'])})."
-            program.add_program(fact)
-            self._facts_debug_text += fact + "\n"
+            os_ = OptSize()
+            os_.set_O(oi)
+            os_.set_S(len(opt["plates"]))
+            program.add_object_input(os_)
 
             for pi, plate_obj in enumerate(opt["plates"]):
                 for piece in plate_obj.pieces:
                     if piece.count > 0:
                         t = TYPE_MAP.get(piece.tipo, piece.tipo.lower())
-                        fact = f"opt_piece({oi},{pi},{t},{piece.count})."
-                        program.add_program(fact)
-                        self._facts_debug_text += fact + "\n"
+                        op_piece = OptPiece()
+                        op_piece.set_O(oi)
+                        op_piece.set_P(pi)
+                        op_piece.set_T(t)
+                        op_piece.set_K(piece.count)
+                        program.add_object_input(op_piece)
 
         if not valid_solver_indices:
             if debug:
@@ -157,54 +144,38 @@ class CakeSortASPSolver:
                 f.write(enc)
                 if not enc.endswith("\n"):
                     f.write("\n")
-                f.write(self._facts_debug_text)
-            #print(f"[AI] Programma ASP scritto in: {tmp_path}")
-            #print("=== PROGRAMMA ASP COMPLETO (encoding + fatti) ===")
-            #print(enc)
-            #print(self._facts_debug_text)
-            #print("=== FINE PROGRAMMA COMPLETO ===")
-            # Per vedere subito errori sintattici DLV2, puoi decommentare:
-            # self.debug_run_dlv2_file(tmp_path)
+                f.write(program.get_programs())
 
         self.handler.add_program(program)
         answer_sets = self.handler.start_sync()
-        ans_str = answer_sets.get_answer_sets_string()
-
-        if debug:
-            print("=== RAW OUTPUT DLV2 (via EmbASP) ===")
-            print(ans_str)
-            print("=======================")
 
         best = None
-        source = None
-
-        # prova a leggere choose(...) dall'output
-        best = _extract_choose_from_string(ans_str)
-        if best is not None:
-            source = "ASP-regex"
-            if debug:
-                print(f"[AI] Candidato da ASP (regex): {best}")
-        else:
-            if debug:
-                print("[AI] Nessun choose(...) trovato nell'output DLV2")
-
-        # controllo legalità
-        if best is not None:
-            oi, r, c = best
-            if oi < len(current_options):
-                if not state.can_place_block(current_options[oi], r, c):
+        optimal = answer_sets.get_optimal_answer_sets()
+        if optimal:
+            for obj in optimal[-1].get_atoms():
+                if isinstance(obj, Choose):
+                    best = (obj.get_O(), obj.get_R(), obj.get_C())
                     if debug:
-                        print(f"[AI] Mossa {best} proposta da {source} ma illegale -> annullata")
-                    best = None
-                    source = None
-            else:
-                if debug:
-                    print(f"[AI] Mossa {best} proposta da {source} ma O fuori range -> annullata")
-                best = None
-                source = None
+                        print(f"[AI] Candidato da ASP (object): {best}")
+                    break
+
+        if best is None:
+            if debug:
+                print("[AI] Nessun oggetto Choose trovato nell'answer set ottimale")
+            return None
+
+        oi, r, c = best
+        if oi >= len(current_options):
+            if debug:
+                print(f"[AI] Mossa {best} fuori range -> annullata")
+            return None
+
+        if not state.can_place_block(current_options[oi], r, c):
+            if debug:
+                print(f"[AI] Mossa {best} illegale -> annullata")
+            return None
 
         if debug:
-            print(f"[AI] SCELTA FINALE: {best} (source={source})")
+            print(f"[AI] SCELTA FINALE: {best} (source=ASP-object)")
 
         return best
-
