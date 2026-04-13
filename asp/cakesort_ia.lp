@@ -42,6 +42,19 @@ ext_neigh(O,R,C,Rn,Cn) :- choose(O,R,C), covers(O,R,C,Rp,Cp),
 ext_neigh(O,R,C,Rn,Cn) :- choose(O,R,C), covers(O,R,C,Rp,Cp),
                          Cn=Cp-1, col(Cn), Rn=Rp, not covers(O,R,C,Rn,Cn).
 
+ext_neigh_of_cell(Rp,Cp,Rn,Cn) :-
+    row(Rp), col(Cp),
+    Rn=Rp+1, row(Rn), Cn=Cp, col(Cn).
+ext_neigh_of_cell(Rp,Cp,Rn,Cn) :-
+    row(Rp), col(Cp),
+    Rn=Rp-1, row(Rn), Cn=Cp, col(Cn).
+ext_neigh_of_cell(Rp,Cp,Rn,Cn) :-
+    row(Rp), col(Cp),
+    Rn=Rp, Cn=Cp+1, col(Cn), row(Rn).
+ext_neigh_of_cell(Rp,Cp,Rn,Cn) :-
+    row(Rp), col(Cp),
+    Rn=Rp, Cn=Cp-1, col(Cn), row(Rn).
+
 % -------------------------------------------------------------
 % TIPI E PUREZZA
 % -------------------------------------------------------------
@@ -101,7 +114,8 @@ direct_match(O,R,C,P,T) :-
     choose(O,R,C),
     plate_pos(O,R,C,P,Rp,Cp),
     type_in_plate(O,P,T),
-    ext_neigh(O,R,C,Rn,Cn),
+    ext_neigh_of_cell(Rp,Cp,Rn,Cn),
+    not covers(O,R,C,Rn,Cn),
     occ_type(Rn,Cn,T).
 
 brings(O,R,C,P,T,K) :-
@@ -112,7 +126,8 @@ brings(O,R,C,P,T,K) :-
 neighbor_has(O,R,C,P,T,Rn,Cn,Kn) :-
     choose(O,R,C),
     plate_pos(O,R,C,P,Rp,Cp),
-    ext_neigh(O,R,C,Rn,Cn),
+    ext_neigh_of_cell(Rp,Cp,Rn,Cn),
+    not covers(O,R,C,Rn,Cn),
     occ_count(Rn,Cn,T,Kn),
     type_in_plate(O,P,T).
 
@@ -137,25 +152,101 @@ will_complete(O,R,C) :- can_complete(O,R,C).
 % -------------------------------------------------------------
 % MULTI-MERGE
 % -------------------------------------------------------------
+
+% FIX typo: plate_pos corretto
 matched_type_count(O,R,C,N) :-
     choose(O,R,C),
-    N = #count{ T : type_in_opt(O,T), ext_neigh(O,R,C,Rn,Cn), occ_type(Rn,Cn,T) }.
+    N = #count{ T : type_in_opt(O,T),
+                    plate_pos(O,R,C,_,Rp,Cp),
+                    ext_neigh_of_cell(Rp,Cp,Rn,Cn),
+                    not covers(O,R,C,Rn,Cn),
+                    occ_type(Rn,Cn,T) }.
 
 multi_type_match(O,R,C) :-
     choose(O,R,C),
     matched_type_count(O,R,C,N),
     N >= 2.
 
+% FIX: due vicini diversi = Rn1!=Rn2 OPPURE Cn1!=Cn2
+% separato in due regole per evitare disgiunzione inline
+plate_double_match(O,R,C,P) :-
+    choose(O,R,C),
+    plate_pos(O,R,C,P,Rp,Cp),
+    type_in_plate(O,P,T1),
+    type_in_plate(O,P,T2),
+    T1 != T2,
+    ext_neigh_of_cell(Rp,Cp,Rn1,Cn1),
+    not covers(O,R,C,Rn1,Cn1),
+    occ_type(Rn1,Cn1,T1),
+    ext_neigh_of_cell(Rp,Cp,Rn2,Cn2),
+    not covers(O,R,C,Rn2,Cn2),
+    occ_type(Rn2,Cn2,T2),
+    Rn1 != Rn2.
+
+plate_double_match(O,R,C,P) :-
+    choose(O,R,C),
+    plate_pos(O,R,C,P,Rp,Cp),
+    type_in_plate(O,P,T1),
+    type_in_plate(O,P,T2),
+    T1 != T2,
+    ext_neigh_of_cell(Rp,Cp,Rn1,Cn1),
+    not covers(O,R,C,Rn1,Cn1),
+    occ_type(Rn1,Cn1,T1),
+    ext_neigh_of_cell(Rp,Cp,Rn2,Cn2),
+    not covers(O,R,C,Rn2,Cn2),
+    occ_type(Rn2,Cn2,T2),
+    Cn1 != Cn2.
+
+% FIX: double_match_available calcolato su legal, non su choose
+plate_double_match_legal(O,R,C,P) :-
+    legal(O,R,C),
+    plate_pos(O,R,C,P,Rp,Cp),
+    type_in_plate(O,P,T1),
+    type_in_plate(O,P,T2),
+    T1 != T2,
+    ext_neigh_of_cell(Rp,Cp,Rn1,Cn1),
+    not covers(O,R,C,Rn1,Cn1),
+    occ_type(Rn1,Cn1,T1),
+    ext_neigh_of_cell(Rp,Cp,Rn2,Cn2),
+    not covers(O,R,C,Rn2,Cn2),
+    occ_type(Rn2,Cn2,T2),
+    Rn1 != Rn2.
+
+plate_double_match_legal(O,R,C,P) :-
+    legal(O,R,C),
+    plate_pos(O,R,C,P,Rp,Cp),
+    type_in_plate(O,P,T1),
+    type_in_plate(O,P,T2),
+    T1 != T2,
+    ext_neigh_of_cell(Rp,Cp,Rn1,Cn1),
+    not covers(O,R,C,Rn1,Cn1),
+    occ_type(Rn1,Cn1,T1),
+    ext_neigh_of_cell(Rp,Cp,Rn2,Cn2),
+    not covers(O,R,C,Rn2,Cn2),
+    occ_type(Rn2,Cn2,T2),
+    Cn1 != Cn2.
+
+double_match_available :-
+    plate_double_match_legal(O,R,C,_P).
+
+has_double_match(O,R,C) :-
+    choose(O,R,C),
+    plate_double_match(O,R,C,_P).
+
 plate0_has_match(O,R,C) :-
     choose(O,R,C),
+    plate_pos(O,R,C,0,Rp,Cp),
     type_in_plate(O,0,T),
-    ext_neigh(O,R,C,Rn,Cn),
+    ext_neigh_of_cell(Rp,Cp,Rn,Cn),
+    not covers(O,R,C,Rn,Cn),
     occ_type(Rn,Cn,T).
 
 plate1_has_match(O,R,C) :-
     choose(O,R,C),
+    plate_pos(O,R,C,1,Rp,Cp),
     type_in_plate(O,1,T),
-    ext_neigh(O,R,C,Rn,Cn),
+    ext_neigh_of_cell(Rp,Cp,Rn,Cn),
+    not covers(O,R,C,Rn,Cn),
     occ_type(Rn,Cn,T).
 
 both_plates_match(O,R,C) :-
@@ -196,7 +287,6 @@ pure_plate_matches(O,R,C) :-
 % -------------------------------------------------------------
 % ISOLAMENTO DI TIPI ESTRANEI
 % -------------------------------------------------------------
-
 neighbor_incompatible_type(O,R,C,Rn,Cn,T) :-
     choose(O,R,C),
     ext_neigh(O,R,C,Rn,Cn),
@@ -307,9 +397,8 @@ min_dist_center(O,R,C,MD) :-
     MD = #min{D : dist_center(O,R,C,D)}.
 
 % -------------------------------------------------------------
-% BRIDGE / COLLEGAMENTI TRA GRUPPI DELLO STESSO TIPO
+% BRIDGE
 % -------------------------------------------------------------
-
 has_type(R,C,T) :- occ_type(R,C,T).
 
 bridge_two_groups(O,R,C,T) :-
@@ -338,40 +427,39 @@ bridge_pure_mixed(O,R,C,T) :-
 :~ choose(O,R,C), bridge_two_groups(O,R,C,T). [-10@6,O,R,C,T]
 
 % -------------------------------------------------------------
-% VINCOLI DEBOLI (ordinati per priorita')
+% VINCOLI DEBOLI
 % -------------------------------------------------------------
-:~ choose(O,R,C), not can_complete(O,R,C).                       [80@11,O,R,C]
-:~ choose(O,R,C), can_complete(O,R,C), not creates_space(O,R,C). [20@10,O,R,C]
+:~ choose(O,R,C), not has_double_match(O,R,C), double_match_available. [-50@10,O,R,C]
+
+:~ choose(O,R,C), not can_complete(O,R,C).                        [80@11,O,R,C]
+:~ choose(O,R,C), can_complete(O,R,C), not creates_space(O,R,C).  [20@10,O,R,C]
 :~ choose(O,R,C), blocks_vital(O,R,C,T), not can_complete(O,R,C). [60@13,O,R,C,T]
 
-:~ choose(O,R,C), foreign_and_adjacent(O,R,C).                   [90@12,O,R,C]
+:~ choose(O,R,C), foreign_and_adjacent(O,R,C).                    [90@12,O,R,C]
 
-:~ choose(O,R,C), not multi_type_match(O,R,C).                   [35@9,O,R,C]
+:~ choose(O,R,C), not multi_type_match(O,R,C).                    [35@9,O,R,C]
 
-:~ choose(O,R,C), opt_size(O,2), not both_plates_match(O,R,C).   [40@9,O,R,C]
+:~ choose(O,R,C), opt_size(O,2), not both_plates_match(O,R,C).    [40@9,O,R,C]
 
 some_direct_match(O,R,C) :-
     direct_match(O,R,C,P,T).
 
-:~ choose(O,R,C), not some_direct_match(O,R,C).                  [15@7,O,R,C]
+:~ choose(O,R,C), not some_direct_match(O,R,C).                   [15@7,O,R,C]
 
-:~ choose(O,R,C), best_consolidation(O,R,C,M), M = 0.            [25@7,O,R,C]
-:~ choose(O,R,C), best_consolidation(O,R,C,M), M < 4.            [10@6,O,R,C]
+:~ choose(O,R,C), best_consolidation(O,R,C,M), M = 0.             [25@7,O,R,C]
+:~ choose(O,R,C), best_consolidation(O,R,C,M), M < 4.             [10@6,O,R,C]
 
-:~ choose(O,R,C), not pure_plate_matches(O,R,C).                 [30@9,O,R,C]
-:~ choose(O,R,C), not pure_touch(O,R,C).                         [20@8,O,R,C]
+:~ choose(O,R,C), not pure_plate_matches(O,R,C).                  [30@9,O,R,C]
+:~ choose(O,R,C), not pure_touch(O,R,C).                          [20@8,O,R,C]
 
-% --- Spazio ---
-:~ fragmented_space(O,R,C).                                      [20@5,O,R,C]
+:~ fragmented_space(O,R,C).                                       [20@5,O,R,C]
 
-:~ choose(O,R,C), min_dist_center(O,R,C,MD), MD > 2.             [3@8,O,R,C]
+:~ choose(O,R,C), min_dist_center(O,R,C,MD), MD > 2.              [3@9,O,R,C]
 
-% --- Opt pura (leggero bonus) ---
-:~ choose(O,R,C), pure_opt(O).                                   [-5@2,O,R,C]
+:~ choose(O,R,C), pure_opt(O).                                    [-5@2,O,R,C]
 
-% (rafforza problema 1: piu' vicini incompatibili = peggio)
-:~ choose(O,R,C), incompatible_neigh_count(O,R,C,N), N >= 2.    [40@8,O,R,C]
+:~ choose(O,R,C), incompatible_neigh_count(O,R,C,N), N >= 2.     [40@8,O,R,C]
 :~ choose(O,R,C), incompatible_neigh_count(O,R,C,N), N >= 1,
-   all_types_foreign(O).                                          [70@10,O,R,C]
+   all_types_foreign(O).                                           [70@10,O,R,C]
 
 #show choose/3.
