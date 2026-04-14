@@ -140,6 +140,8 @@ class Game:
                 self.generate_options()
                 available = self._get_available_options()
             if not available:
+                if not self._has_any_move():
+                    self.ai_game_over = True
                 return False
 
         available_opts = [opt for (oi, opt) in available]
@@ -147,6 +149,9 @@ class Game:
 
         move = self.ai_solver.choose_move(self.state, available_opts, debug=True)
         if move is None:
+            if not self._has_any_move():
+                print("L'IA è bloccata: Game Over!")
+                self.ai_game_over = True
             return False
 
         solver_oi, r, c = move
@@ -233,9 +238,6 @@ class Game:
         self.ai_pending = None
         self.ai_animating = False
         self.ai_anim_sprites = []
-
-        if not self._has_any_move():
-            self.ai_game_over = True
 
     def _rebuild_sprites_from_current_options(self):
         self.sprites = []
@@ -440,6 +442,9 @@ class Game:
             self.display_grid = None
             self._pending_grid_after = None
             self.state.finalize_removals()
+
+            if not self._has_any_move():
+                self.ai_game_over = True
 
     def _launch_unlock_effect(self):
         """Lancia l'UnlockEffect e il suono. Chiamato solo quando tutto il resto è finito."""
@@ -868,8 +873,5 @@ class Game:
                 self.drag_sprite = None
                 self.drag_group = None
                 self._group_offsets = None
-
-                if not self._has_any_move():
-                    return "game_over"
 
         return None
