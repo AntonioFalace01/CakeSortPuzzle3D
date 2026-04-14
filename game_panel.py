@@ -131,6 +131,9 @@ class Game:
         if self.ai_animating:
             return False
 
+        if self.state.plates_to_remove:
+            self.state.finalize_removals()
+
         available = self._get_available_options()
         if not available:
             if self._all_options_used():

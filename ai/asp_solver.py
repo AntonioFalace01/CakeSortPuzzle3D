@@ -146,6 +146,29 @@ class CakeSortASPSolver:
                     f.write("\n")
                 f.write(program.get_programs())
 
+        if debug:
+            print("=== FATTI PASSATI A DLV2 ===")
+            print(program.get_programs())
+            print("=== FINE FATTI ===")
+
+        self.handler.add_program(program)
+        answer_sets = self.handler.start_sync()
+
+        if debug:
+            print("=== RAW OUTPUT DLV2 ===")
+            print(answer_sets.get_answer_sets_string())
+            print("=== FINE RAW OUTPUT ===")
+
+            if debug:
+                print("=== TUTTI GLI ANSWER SETS ===")
+                all_as = answer_sets.get_answer_sets()
+                for ans in all_as:
+                    print(ans.get_atoms(), "COST:", ans.get_cost() if hasattr(ans, 'get_cost') else "?")
+                print("=== FINE TUTTI ===")
+            else:
+                print("Nessun answer set ottimale trovato")
+            print("=== FINE ANSWER SETS ===")
+
         self.handler.add_program(program)
         answer_sets = self.handler.start_sync()
 
