@@ -1,481 +1,451 @@
 % -------------------------------------------------------------
-% CELLE E CANDIDATI
+% 0. DEFINIZIONE GRIGLIA E SUPPORTI TECNICI
 % -------------------------------------------------------------
-cell(R,C) :- row(R), col(C).
-cand(O,R,C) :- opt(O), row(R), col(C).
-
-% -------------------------------------------------------------
-% POSIZIONI E COPERTURA
-% -------------------------------------------------------------
-plate_pos(O,R,C,0,R,C)  :- cand(O,R,C), opt_orient(O,n).
-plate_pos(O,R,C,0,R,C)  :- cand(O,R,C), opt_orient(O,h).
-plate_pos(O,R,C,1,R,C2) :- cand(O,R,C), opt_orient(O,h), C2=C+1, col(C2).
-plate_pos(O,R,C,0,R,C)  :- cand(O,R,C), opt_orient(O,v).
-plate_pos(O,R,C,1,R2,C) :- cand(O,R,C), opt_orient(O,v), R2=R+1, row(R2).
-
-covers(O,R,C,Rp,Cp) :- plate_pos(O,R,C,_,Rp,Cp).
+row(0..4).
+col(0..3).
+idx(0..10).
+max_row(4).
+max_col(3).
+total_cells(20).
 
 % -------------------------------------------------------------
-% LEGALITA'
+% 1. GENERATE (Scelta della mossa)
 % -------------------------------------------------------------
-illegal(O,R,C) :- cand(O,R,C), opt_orient(O,h), opt_size(O,2), C2=C+1, not col(C2).
-illegal(O,R,C) :- cand(O,R,C), opt_orient(O,v), opt_size(O,2), R2=R+1, not row(R2).
-illegal(O,R,C) :- cand(O,R,C), covers(O,R,C,R2,C2), not empty(R2,C2).
-
-legal(O,R,C) :- cand(O,R,C), not illegal(O,R,C).
+{ choose(O, R, C) : opt(O), row(R), col(C) } = 1.
 
 % -------------------------------------------------------------
-% SCELTA
+% 2. POSIZIONI E LEGALITA (Sintassi DLV2)
 % -------------------------------------------------------------
-choose(O,R,C) | not_choose(O,R,C) :- legal(O,R,C).
-:- #count { O,R,C : choose(O,R,C) } != 1.
+place(O, R, C, 0) :- choose(O, R, C), opt_orient(O, n).
 
-% -------------------------------------------------------------
-% VICINI ESTERNI
-% -------------------------------------------------------------
-ext_neigh(O,R,C,Rn,Cn) :- choose(O,R,C), covers(O,R,C,Rp,Cp),
-                         Rn=Rp+1, row(Rn), Cn=Cp, not covers(O,R,C,Rn,Cn).
-ext_neigh(O,R,C,Rn,Cn) :- choose(O,R,C), covers(O,R,C,Rp,Cp),
-                         Rn=Rp-1, row(Rn), Cn=Cp, not covers(O,R,C,Rn,Cn).
-ext_neigh(O,R,C,Rn,Cn) :- choose(O,R,C), covers(O,R,C,Rp,Cp),
-                         Cn=Cp+1, col(Cn), Rn=Rp, not covers(O,R,C,Rn,Cn).
-ext_neigh(O,R,C,Rn,Cn) :- choose(O,R,C), covers(O,R,C,Rp,Cp),
-                         Cn=Cp-1, col(Cn), Rn=Rp, not covers(O,R,C,Rn,Cn).
+place(O, R, CP, P) :-
+    choose(O, R, C), opt_orient(O, h), opt_size(O, S),
+    idx(P), P < S, CP = C + P.
 
-% -------------------------------------------------------------
-% TIPI E PUREZZA
-% -------------------------------------------------------------
-type_in_plate(O,P,T)   :- opt_piece(O,P,T,K), K > 0.
-type_in_opt(O,T)       :- type_in_plate(O,_,T).
+place(O, RP, C, P) :-
+    choose(O, R, C), opt_orient(O, v), opt_size(O, S),
+    idx(P), P < S, RP = R + P.
 
-two_types_in_opt(O)    :- type_in_opt(O,T1), type_in_opt(O,T2), T1 != T2.
-pure_opt(O)            :- opt(O), not two_types_in_opt(O).
-
-two_types_in_plate(O,P) :-
-    type_in_plate(O,P,T1),
-    type_in_plate(O,P,T2),
-    T1 != T2.
-
-pure_plate(O,P) :-
-    type_in_plate(O,P,_),
-    not two_types_in_plate(O,P).
-
-pure_plate_type(O,P,T) :- pure_plate(O,P), type_in_plate(O,P,T).
-
-two_types_in_cell(R,C) :-
-    occ_type(R,C,T1),
-    occ_type(R,C,T2),
-    T1 != T2.
-
-cell_pure(R,C) :-
-    occ(R,C),
-    occ_type(R,C,_),
-    not two_types_in_cell(R,C).
-
-neighbor_pure(Rn,Cn,T) :-
-    cell_pure(Rn,Cn),
-    occ_type(Rn,Cn,T).
+:- place(_, R, C, _), not row(R).
+:- place(_, R, C, _), not col(C).
+:- place(_, R, C, _), occ(R, C).
 
 % -------------------------------------------------------------
-% TIPI PRESENTI NELLA GRIGLIA
+% 3. ANALISI VICINATO SPECIFICO PER PIASTRA
 % -------------------------------------------------------------
-% Tipi che esistono gia' nella griglia
-grid_type(T) :- occ_type(_,_,T).
+adj(R, C, R, C1) :- row(R), col(C), C1 = C + 1, col(C1).
+adj(R, C, R, C1) :- row(R), col(C), C1 = C - 1, col(C1).
+adj(R, C, R1, C) :- row(R), col(C), R1 = R + 1, row(R1).
+adj(R, C, R1, C) :- row(R), col(C), R1 = R - 1, row(R1).
 
-% Un tipo dell'opzione non ha corrispondenti nella griglia
-opt_type_foreign(O,T) :-
-    type_in_opt(O,T),
-    not grid_type(T).
+is_covered(O, R, C) :- place(O, R, C, _).
 
-% Tutti i tipi dell'opzione sono estranei alla griglia
-all_types_foreign(O) :-
-    opt(O),
-    type_in_opt(O,_),
-    not has_grid_matching_type(O).
+% MODIFICA CHIAVE: Calcoliamo i vicini esterni della SPECIFICA piastra P
+plate_neigh(O, R, C, P, Rn, Cn) :-
+    choose(O, R, C),
+    place(O, Rp, Cp, P),
+    adj(Rp, Cp, Rn, Cn),
+    not is_covered(O, Rn, Cn).
 
-has_grid_matching_type(O) :-
-    type_in_opt(O,T),
-    grid_type(T).
-
-% -------------------------------------------------------------
-% MATCH E COMPLETAMENTO
-% -------------------------------------------------------------
-direct_match(O,R,C,P,T) :-
-    choose(O,R,C),
-    plate_pos(O,R,C,P,Rp,Cp),
-    type_in_plate(O,P,T),
-    ext_neigh(O,R,C,Rn,Cn),
-    occ_type(Rn,Cn,T).
-
-brings(O,R,C,P,T,K) :-
-    choose(O,R,C),
-    plate_pos(O,R,C,P,Rp,Cp),
-    opt_piece(O,P,T,K), K > 0.
-
-neighbor_has(O,R,C,P,T,Rn,Cn,Kn) :-
-    choose(O,R,C),
-    plate_pos(O,R,C,P,Rp,Cp),
-    ext_neigh(O,R,C,Rn,Cn),
-    occ_count(Rn,Cn,T,Kn),
-    type_in_plate(O,P,T).
-
-sb_type(O,R,C,T,SB) :-
-    choose(O,R,C),
-    direct_match(O,R,C,_,T),
-    SB = #sum{ K,P : brings(O,R,C,P,T,K) }.
-
-sn_type(O,R,C,T,SN) :-
-    choose(O,R,C),
-    direct_match(O,R,C,_,T),
-    SN = #sum{ Kn,Rn,Cn : neighbor_has(O,R,C,_,T,Rn,Cn,Kn) }.
-
-sum_type(O,R,C,T,S) :-
-    sb_type(O,R,C,T,SB),
-    sn_type(O,R,C,T,SN),
-    S = SB + SN.
-
-can_complete(O,R,C) :- sum_type(O,R,C,_,S), S >= 6.
-will_complete(O,R,C) :- can_complete(O,R,C).
+% (Manteniamo ext_neigh globale se dovesse servire per fallback, ma usiamo plate_neigh)
+ext_neigh(O, R, C, Rn, Cn) :- plate_neigh(O, R, C, _, Rn, Cn).
 
 % -------------------------------------------------------------
-% MULTI-MERGE: premia piatti che matchano piu' tipi distinti
-% (es. piatto misto A+B adiacente a cella-A e cella-B)
+% 4. LOGICA STRATEGICA (Match e Bridge per piastra)
 % -------------------------------------------------------------
 
-% Tipi dell'opzione che hanno almeno un match in un vicino esterno
-matched_type_count(O,R,C,N) :-
-    choose(O,R,C),
-    N = #count{ T : type_in_opt(O,T), ext_neigh(O,R,C,Rn,Cn), occ_type(Rn,Cn,T) }.
+% Match diretto: la specifica piastra P porta T e tocca FISICAMENTE un vicino con T
+plate_direct_match(O, R, C, P, T) :-
+    opt_piece(O, P, T, K), K > 0,
+    plate_neigh(O, R, C, P, Rn, Cn),
+    occ_type(Rn, Cn, T).
 
-% Matchano almeno 2 tipi distinti con vicini diversi
-multi_type_match(O,R,C) :-
-    choose(O,R,C),
-    matched_type_count(O,R,C,N),
+% Mappiamo a livello globale per retrocompatibilità dei weak constraints
+direct_match(O, R, C, T) :- plate_direct_match(O, R, C, _, T).
+
+% La piastra P contiene T
+plate_has_type(O, P, T) :- opt_piece(O, P, T, K), K > 0.
+has_type(O, T) :- plate_has_type(O, _, T).
+
+% Bridge per singola piastra
+plate_bridge(O, R, C, P, T) :-
+    choose(O, R, C),
+    plate_has_type(O, P, T),
+    N = #count{ Rn, Cn : plate_neigh(O, R, C, P, Rn, Cn), occ_type(Rn, Cn, T) },
     N >= 2.
 
-% Per i blocchi doppi: entrambe le plate matchano qualcosa
-% (plate 0 e plate 1 hanno almeno un vicino con tipo compatibile)
-plate0_has_match(O,R,C) :-
-    choose(O,R,C),
-    type_in_plate(O,0,T),
-    ext_neigh(O,R,C,Rn,Cn),
-    occ_type(Rn,Cn,T).
+bridge(O, R, C, T) :- plate_bridge(O, R, C, _, T).
 
-plate1_has_match(O,R,C) :-
-    choose(O,R,C),
-    type_in_plate(O,1,T),
-    ext_neigh(O,R,C,Rn,Cn),
-    occ_type(Rn,Cn,T).
+grid_type(T) :- occ_type(_, _, T).
 
-both_plates_match(O,R,C) :-
-    choose(O,R,C),
-    opt_size(O,2),
-    plate0_has_match(O,R,C),
-    plate1_has_match(O,R,C).
+% Bridge "puro" per singola piastra
+plate_bridge_pure(O, R, C, P, T) :-
+    choose(O, R, C),
+    place(O, _, _, P),
+    grid_type(T),
+    N = #count{ Rn, Cn : plate_neigh(O, R, C, P, Rn, Cn), occ_type(Rn, Cn, T) },
+    N >= 2.
+
+bridge_pure(O, R, C, T) :- plate_bridge_pure(O, R, C, _, T).
 
 % -------------------------------------------------------------
-% CONSOLIDAMENTO
-% -------------------------------------------------------------
-nearby_same(O,R,C,T,S) :-
-    choose(O,R,C), type_in_opt(O,T),
-    S = #sum{Kn,Rn,Cn : neighbor_has(O,R,C,_,T,Rn,Cn,Kn)}.
-
-best_consolidation(O,R,C,M) :-
-    choose(O,R,C),
-    M = #max{S : nearby_same(O,R,C,_,S)}.
-
-% -------------------------------------------------------------
-% PURE MATCH
-% -------------------------------------------------------------
-pure_touch(O,R,C) :-
-    choose(O,R,C),
-    plate_pos(O,R,C,P,Rp,Cp),
-    type_in_plate(O,P,T),
-    ext_neigh(O,R,C,Rn,Cn),
-    neighbor_pure(Rn,Cn,T).
-
-pure_plate_matches(O,R,C) :-
-    choose(O,R,C),
-    pure_plate(O,P),
-    pure_plate_type(O,P,T),
-    plate_pos(O,R,C,P,Rp,Cp),
-    ext_neigh(O,R,C,Rn,Cn),
-    neighbor_pure(Rn,Cn,T).
-
-% -------------------------------------------------------------
-% ISOLAMENTO DI TIPI ESTRANEI
-% (problema 1: piatti non mergiabili messi adiacenti)
+% 5. COMPLETAMENTO TORTA (Per piastra)
 % -------------------------------------------------------------
 
-% Un vicino del blocco ha un tipo non presente nell'opzione
-neighbor_incompatible_type(O,R,C,Rn,Cn,T) :-
-    choose(O,R,C),
-    ext_neigh(O,R,C,Rn,Cn),
-    occ_type(Rn,Cn,T),
-    not type_in_opt(O,T).
+plate_brought(O, P, T, Brought) :-
+    plate_has_type(O, P, T),
+    opt_piece(O, P, T, Brought).
 
-% Conta quante coppie (vicino, tipo incompatibile) esistono
-incompatible_neigh_count(O,R,C,N) :-
-    choose(O,R,C),
-    N = #count{ Rn,Cn,T : neighbor_incompatible_type(O,R,C,Rn,Cn,T) }.
+% Calcolo totale fette per mosse con direct_match verificato SU QUELLA PIASTRA
+sum_fette_plate(O, R, C, P, T, Total) :-
+    plate_direct_match(O, R, C, P, T),
+    plate_brought(O, P, T, Brought),
+    InGrid = #sum{ Kn, Rn, Cn : plate_neigh(O, R, C, P, Rn, Cn), occ_count(Rn, Cn, T, Kn) },
+    Total = Brought + InGrid.
 
-% Penalizza se l'opzione non ha NESSUN tipo compatibile con i vicini
-% ma viene comunque messa adiacente ad essi
-% (situazione in cui tutti i tipi dell'opt sono estranei alla griglia
-%  ma la posizione e' adiacente a celle occupate)
-useless_adjacent(O,R,C) :-
-    choose(O,R,C),
-    all_types_foreign(O),
-    incompatible_neigh_count(O,R,C,N),
-    N > 0.
+% Calcolo totale fette per bridge puro su specifica piastra
+sum_fette_bridge_plate(O, R, C, P, T, Total) :-
+    plate_bridge_pure(O, R, C, P, T),
+    not plate_has_type(O, P, T),
+    Total = #sum{ Kn, Rn, Cn : plate_neigh(O, R, C, P, Rn, Cn), occ_count(Rn, Cn, T, Kn) }.
 
-% Conta celle occupate adiacenti al blocco
-occupied_neigh_count(O,R,C,N) :-
-    choose(O,R,C),
-    N = #count{ Rn,Cn : ext_neigh(O,R,C,Rn,Cn), occ(Rn,Cn) }.
+can_complete(O, R, C) :- sum_fette_plate(O, R, C, _, _, Tot), Tot >= 6.
+can_complete(O, R, C) :- sum_fette_bridge_plate(O, R, C, _, _, Tot), Tot >= 6.
 
-% Blocco isolato: nessun vicino occupato
-is_isolated(O,R,C) :-
-    choose(O,R,C),
-    occupied_neigh_count(O,R,C,0).
-
-% Blocco con tipi estranei e adiacente a celle occupate (nessun merge possibile)
-% e' peggio di un blocco isolato
-foreign_and_adjacent(O,R,C) :-
-    choose(O,R,C),
-    all_types_foreign(O),
-    occupied_neigh_count(O,R,C,N),
-    N > 0.
+some_completion_exists :- can_complete(_, _, _).
+:- some_completion_exists, choose(O, R, C), not can_complete(O, R, C).
 
 % -------------------------------------------------------------
-% SPAZIO
-% -------------------------------------------------------------
-free_count(O,R,C,N) :-
-    choose(O,R,C),
-    N = #count{Rf,Cf : cell(Rf,Cf),
-                        not occ(Rf,Cf),
-                        not covers(O,R,C,Rf,Cf)}.
-
-% Celle totali occupate prima del piazzamento
-total_occupied(N) :-
-    N = #count{R,C : occ(R,C)}.
-
-% Celle totali della griglia (rows * cols, ricavato dai fatti)
-total_cells(N) :-
-    N = #count{R,C : row(R), col(C)}.
-
-% Griglia considerata "quasi piena": piu' di meta' occupata
-grid_crowded :-
-    total_occupied(Occ),
-    total_cells(Tot),
-    Tot > 0,
-    Occ * 2 > Tot.
-
-% Griglia molto piena: piu' di 3/4 occupata
-grid_very_crowded :-
-    total_occupied(Occ),
-    total_cells(Tot),
-    Tot > 0,
-    Occ * 4 > Tot * 3.
-
-% fragmented_space scatta solo se la griglia NON e' gia' quasi piena
-% (soglia assoluta < 6 ha senso solo a meta' partita)
-fragmented_space(O,R,C) :-
-    choose(O,R,C),
-    free_count(O,R,C,N),
-    N < 6,
-    not grid_crowded.
-
-% Quando la griglia e' quasi piena, soglia piu' bassa (< 3)
-fragmented_space(O,R,C) :-
-    choose(O,R,C),
-    free_count(O,R,C,N),
-    N < 3,
-    grid_crowded,
-    not grid_very_crowded.
-
-% Quando la griglia e' molto piena il vincolo spazio non si applica affatto
-% (lascia decidere solo i merge)
-
-creates_space(O,R,C) :-
-    will_complete(O,R,C).
-
-% -------------------------------------------------------------
-% ANTI-BLOCK
-% -------------------------------------------------------------
-near_complete_cell(R,C,T) :- occ_count(R,C,T,K), K >= 4, K < 6.
-
-vital_space(Rn,Cn,T) :-
-    near_complete_cell(R,C,T), empty(Rn,Cn),
-    Rn=R+1, Cn=C, row(Rn), col(Cn).
-vital_space(Rn,Cn,T) :-
-    near_complete_cell(R,C,T), empty(Rn,Cn),
-    Rn=R-1, Cn=C, row(Rn), col(Cn).
-vital_space(Rn,Cn,T) :-
-    near_complete_cell(R,C,T), empty(Rn,Cn),
-    Rn=R, Cn=C+1, row(Rn), col(Cn).
-vital_space(Rn,Cn,T) :-
-    near_complete_cell(R,C,T), empty(Rn,Cn),
-    Rn=R, Cn=C-1, row(Rn), col(Cn).
-
-blocks_vital(O,R,C,T) :-
-    choose(O,R,C),
-    covers(O,R,C,Rp,Cp),
-    vital_space(Rp,Cp,T),
-    not type_in_opt(O,T).
-
-% -------------------------------------------------------------
-% CENTRALITA'
-% -------------------------------------------------------------
-dist_center(O,R,C,D) :-
-    choose(O,R,C),
-    covers(O,R,C,Rp,Cp),
-    D = (Rp-2)*(Rp-2) + (Cp-2)*(Cp-2).
-
-min_dist_center(O,R,C,MD) :-
-    choose(O,R,C),
-    MD = #min{D : dist_center(O,R,C,D)}.
-
-% -------------------------------------------------------------
-% BRIDGE / COLLEGAMENTI TRA GRUPPI DELLO STESSO TIPO
+% 6. VITAL SPACE (Anti-Block) - RAFFINATO PER PIASTRA
 % -------------------------------------------------------------
 
-has_type(R,C,T) :- occ_type(R,C,T).
+near_complete(R, C, T) :- occ_count(R, C, T, K), K >= 4, K < 6.
 
-bridge_two_groups(O,R,C,T) :-
-    choose(O,R,C),
-    type_in_opt(O,T),
-    plate_pos(O,R,C,_,Rp,Cp),
-    2 <= #count { Rn,Cn :
-        ext_neigh(O,R,C,Rn,Cn),
-        occ_type(Rn,Cn,T)
-    }.
+free_adj_nc(R, C, T, Rn, Cn) :-
+    near_complete(R, C, T),
+    adj(R, C, Rn, Cn),
+    not occ(Rn, Cn).
 
-bridge_pure_mixed(O,R,C,T) :-
-    choose(O,R,C),
-    type_in_opt(O,T),
-    plate_pos(O,R,C,_,Rp,Cp),
-    ext_neigh(O,R,C,Rp1,Cp1),
-    cell_pure(Rp1,Cp1),
-    occ_type(Rp1,Cp1,T),
-    ext_neigh(O,R,C,Rp2,Cp2),
-    Rp2 != Rp1,
-    Cp2 != Cp1,
-    occ_type(Rp2,Cp2,T),
-    not cell_pure(Rp2,Cp2).
+free_adj_count(R, C, T, N) :-
+    near_complete(R, C, T),
+    N = #count{ Rn, Cn : free_adj_nc(R, C, T, Rn, Cn) }.
 
-:~ choose(O,R,C), bridge_pure_mixed(O,R,C,T). [-15@6,O,R,C,T]
-:~ choose(O,R,C), bridge_two_groups(O,R,C,T). [-10@6,O,R,C,T]
+vital_space(Rn, Cn, R, C, T) :-
+    free_adj_nc(R, C, T, Rn, Cn),
+    free_adj_count(R, C, T, 1).
+
+% Tracciamo QUALE piastra occupa lo spazio
+occupies_cell_plate(O, R, C, Rp, Cp, P) :-
+    choose(O, R, C),
+    place(O, Rp, Cp, P).
+
+% La mossa blocca lo spazio se la SPECIFICA PIASTRA che cade nel buco vitale
+% NON fa match diretto su quella torta near complete
+blocks_vital(O, R, C) :-
+    occupies_cell_plate(O, R, C, Rp, Cp, P),
+    vital_space(Rp, Cp, Rnc, Cnc, T),
+    not direct_match_on_nc_plate(O, R, C, P, Rnc, Cnc, T).
+
+% La piastra P fa match diretto o bridge_pure con la torta NC
+direct_match_on_nc_plate(O, R, C, P, Rnc, Cnc, T) :-
+    choose(O, R, C),
+    plate_has_type(O, P, T),
+    plate_neigh(O, R, C, P, Rnc, Cnc),
+    occ_type(Rnc, Cnc, T).
+
+direct_match_on_nc_plate(O, R, C, P, Rnc, Cnc, T) :-
+    choose(O, R, C),
+    plate_bridge_pure(O, R, C, P, T),
+    plate_neigh(O, R, C, P, Rnc, Cnc),
+    occ_type(Rnc, Cnc, T).
 
 % -------------------------------------------------------------
-% VINCOLI DEBOLI (ordinati per priorita')
+% 7. CENTRALITA E UTILITA
+% -------------------------------------------------------------
+diff_r(R, V) :- choose(_, R, _), max_row(MR), V = R * 2 - MR.
+abs_r(R, V)  :- diff_r(R, V), V >= 0.
+abs_r(R, NV) :- diff_r(R, V), V < 0, NV = -V.
+diff_c(C, V) :- choose(_, _, C), max_col(MC), V = C * 2 - MC.
+abs_c(C, V)  :- diff_c(C, V), V >= 0.
+abs_c(C, NV) :- diff_c(C, V), V < 0, NV = -V.
+dist_center(O, R, C, D) :- choose(O, R, C), abs_r(R, AR), abs_c(C, AC), D = AR + AC.
+
+has_any_match(O, R, C) :- direct_match(O, R, C, _).
+has_any_match(O, R, C) :- bridge_pure(O, R, C, _).
+
+% -------------------------------------------------------------
+% 8. WEAK CONSTRAINTS (LIVELLI DI PRIORITA)
 % -------------------------------------------------------------
 
-% --- Priorita' 13: completamento e blocco vitale ---
-:~ choose(O,R,C), not can_complete(O,R,C).                       [80@11,O,R,C]
-:~ choose(O,R,C), can_complete(O,R,C), not creates_space(O,R,C). [20@10,O,R,C]
-:~ choose(O,R,C), blocks_vital(O,R,C,T), not can_complete(O,R,C). [60@13,O,R,C,T]
+:~ choose(O,R,C), blocks_vital(O,R,C). [80@13, O]
 
-% --- Problema 1: piatti estranei adiacenti a celle occupate ---
-% Forte penalita' se si mette un tipo estraneo adiacente (non isolato)
-:~ choose(O,R,C), foreign_and_adjacent(O,R,C).                   [90@12,O,R,C]
+:~ choose(O,R,C), not has_any_match(O, R, C). [50@11, O]
 
-% --- Problema 2 e 3: multi-merge e blocchi doppi ---
-% Premio forte per matchare piu' tipi distinti con una sola mossa
-:~ choose(O,R,C), not multi_type_match(O,R,C).                   [35@9,O,R,C]
+:~ choose(O,R,C), bridge(O,R,C, _). [-60@10, O]
 
-% Premio per blocchi doppi che matchano entrambe le plate
-:~ choose(O,R,C), opt_size(O,2), not both_plates_match(O,R,C).   [40@9,O,R,C]
+:~ choose(O,R,C), opt_size(O,2), #count{ T : direct_match(O,R,C,T) } >= 2. [-40@9, O]
 
-% --- Match diretto ---
-some_direct_match(O,R,C) :-
-    direct_match(O,R,C,P,T).
+% Modificato per usare il calcolo specifico per piastra (evita duplicazioni e safety error)
+:~ choose(O,R,C), sum_fette_plate(O,R,C,P,T,S). [-S@7, O, P, T]
 
-:~ choose(O,R,C), not some_direct_match(O,R,C).                  [15@7,O,R,C]
+:~ choose(O,R,C), dist_center(O,R,C,D). [D@4, O]
 
-% --- Consolidamento ---
-:~ choose(O,R,C), best_consolidation(O,R,C,M), M = 0.            [25@7,O,R,C]
-:~ choose(O,R,C), best_consolidation(O,R,C,M), M < 4.            [10@6,O,R,C]
+#show choose/3.
 
-% --- Pure match ---
-:~ choose(O,R,C), not pure_plate_matches(O,R,C).                 [30@9,O,R,C]
-:~ choose(O,R,C), not pure_touch(O,R,C).                         [20@8,O,R,C]
+% -------------------------------------------------------------
+% 0. DEFINIZIONE GRIGLIA E SUPPORTI TECNICI
+% -------------------------------------------------------------
+row(0..4).
+col(0..3).
+idx(0..10).
+max_row(4).
+max_col(3).
+total_cells(20).
 
-% --- Spazio ---
-:~ fragmented_space(O,R,C).                                      [20@5,O,R,C]
+% -------------------------------------------------------------
+% 1. GENERATE (Scelta della mossa)
+% -------------------------------------------------------------
+{ choose(O, R, C) : opt(O), row(R), col(C) } = 1.
 
-% --- Centralita' ---
-:~ choose(O,R,C), min_dist_center(O,R,C,MD), MD > 2.             [3@3,O,R,C]
+% -------------------------------------------------------------
+% 2. POSIZIONI E LEGALITA (Sintassi DLV2)
+% -------------------------------------------------------------
+place(O, R, C, 0) :- choose(O, R, C), opt_orient(O, n).
 
-% --- Opt pura (leggero bonus) ---
-:~ choose(O,R,C), pure_opt(O).                                   [-5@2,O,R,C]
+place(O, R, CP, P) :-
+    choose(O, R, C), opt_orient(O, h), opt_size(O, S),
+    idx(P), P < S, CP = C + P.
 
-% --- Penalita' extra per tipi estranei con molti vicini incompatibili ---
-% (rafforza problema 1: piu' vicini incompatibili = peggio)
-:~ choose(O,R,C), incompatible_neigh_count(O,R,C,N), N >= 2.    [40@8,O,R,C]
-:~ choose(O,R,C), incompatible_neigh_count(O,R,C,N), N >= 1,
-   all_types_foreign(O).                                          [70@10,O,R,C]
+place(O, RP, C, P) :-
+    choose(O, R, C), opt_orient(O, v), opt_size(O, S),
+    idx(P), P < S, RP = R + P.
+
+:- place(_, R, C, _), not row(R).
+:- place(_, R, C, _), not col(C).
+:- place(_, R, C, _), occ(R, C).
+
+% -------------------------------------------------------------
+% 3. ANALISI VICINATO SPECIFICO PER PIASTRA
+% -------------------------------------------------------------
+adj(R, C, R, C1) :- row(R), col(C), C1 = C + 1, col(C1).
+adj(R, C, R, C1) :- row(R), col(C), C1 = C - 1, col(C1).
+adj(R, C, R1, C) :- row(R), col(C), R1 = R + 1, row(R1).
+adj(R, C, R1, C) :- row(R), col(C), R1 = R - 1, row(R1).
+
+is_covered(O, R, C) :- place(O, R, C, _).
+
+% MODIFICA CHIAVE: Calcoliamo i vicini esterni della SPECIFICA piastra P
+plate_neigh(O, R, C, P, Rn, Cn) :-
+    choose(O, R, C),
+    place(O, Rp, Cp, P),
+    adj(Rp, Cp, Rn, Cn),
+    not is_covered(O, Rn, Cn).
+
+% (Manteniamo ext_neigh globale se dovesse servire per fallback, ma usiamo plate_neigh)
+ext_neigh(O, R, C, Rn, Cn) :- plate_neigh(O, R, C, _, Rn, Cn).
+
+% -------------------------------------------------------------
+% 4. LOGICA STRATEGICA (Match e Bridge per piastra)
+% -------------------------------------------------------------
+
+% Match diretto: la specifica piastra P porta T e tocca FISICAMENTE un vicino con T
+plate_direct_match(O, R, C, P, T) :-
+    opt_piece(O, P, T, K), K > 0,
+    plate_neigh(O, R, C, P, Rn, Cn),
+    occ_type(Rn, Cn, T).
+
+% Mappiamo a livello globale per retrocompatibilità dei weak constraints
+direct_match(O, R, C, T) :- plate_direct_match(O, R, C, _, T).
+
+% La piastra P contiene T
+plate_has_type(O, P, T) :- opt_piece(O, P, T, K), K > 0.
+has_type(O, T) :- plate_has_type(O, _, T).
+
+% Bridge per singola piastra
+plate_bridge(O, R, C, P, T) :-
+    choose(O, R, C),
+    plate_has_type(O, P, T),
+    N = #count{ Rn, Cn : plate_neigh(O, R, C, P, Rn, Cn), occ_type(Rn, Cn, T) },
+    N >= 2.
+
+bridge(O, R, C, T) :- plate_bridge(O, R, C, _, T).
+
+grid_type(T) :- occ_type(_, _, T).
+
+% Bridge "puro" per singola piastra
+plate_bridge_pure(O, R, C, P, T) :-
+    choose(O, R, C),
+    place(O, _, _, P),
+    grid_type(T),
+    N = #count{ Rn, Cn : plate_neigh(O, R, C, P, Rn, Cn), occ_type(Rn, Cn, T) },
+    N >= 2.
+
+bridge_pure(O, R, C, T) :- plate_bridge_pure(O, R, C, _, T).
+
+% -------------------------------------------------------------
+% 5. COMPLETAMENTO TORTA (Per piastra)
+% -------------------------------------------------------------
+
+plate_brought(O, P, T, Brought) :-
+    plate_has_type(O, P, T),
+    opt_piece(O, P, T, Brought).
+
+% Calcolo totale fette per mosse con direct_match verificato SU QUELLA PIASTRA
+sum_fette_plate(O, R, C, P, T, Total) :-
+    plate_direct_match(O, R, C, P, T),
+    plate_brought(O, P, T, Brought),
+    InGrid = #sum{ Kn, Rn, Cn : plate_neigh(O, R, C, P, Rn, Cn), occ_count(Rn, Cn, T, Kn) },
+    Total = Brought + InGrid.
+
+% Calcolo totale fette per bridge puro su specifica piastra
+sum_fette_bridge_plate(O, R, C, P, T, Total) :-
+    plate_bridge_pure(O, R, C, P, T),
+    not plate_has_type(O, P, T),
+    Total = #sum{ Kn, Rn, Cn : plate_neigh(O, R, C, P, Rn, Cn), occ_count(Rn, Cn, T, Kn) }.
+
+can_complete(O, R, C) :- sum_fette_plate(O, R, C, _, _, Tot), Tot >= 6.
+can_complete(O, R, C) :- sum_fette_bridge_plate(O, R, C, _, _, Tot), Tot >= 6.
+
+some_completion_exists :- can_complete(_, _, _).
+:- some_completion_exists, choose(O, R, C), not can_complete(O, R, C).
+
+% -------------------------------------------------------------
+% 6. VITAL SPACE (Anti-Block) - RAFFINATO PER PIASTRA
+% -------------------------------------------------------------
+
+near_complete(R, C, T) :- occ_count(R, C, T, K), K >= 4, K < 6.
+
+free_adj_nc(R, C, T, Rn, Cn) :-
+    near_complete(R, C, T),
+    adj(R, C, Rn, Cn),
+    not occ(Rn, Cn).
+
+free_adj_count(R, C, T, N) :-
+    near_complete(R, C, T),
+    N = #count{ Rn, Cn : free_adj_nc(R, C, T, Rn, Cn) }.
+
+vital_space(Rn, Cn, R, C, T) :-
+    free_adj_nc(R, C, T, Rn, Cn),
+    free_adj_count(R, C, T, 1).
+
+% Tracciamo QUALE piastra occupa lo spazio
+occupies_cell_plate(O, R, C, Rp, Cp, P) :-
+    choose(O, R, C),
+    place(O, Rp, Cp, P).
+
+% La mossa blocca lo spazio se la SPECIFICA PIASTRA che cade nel buco vitale
+% NON fa match diretto su quella torta near complete
+blocks_vital(O, R, C) :-
+    occupies_cell_plate(O, R, C, Rp, Cp, P),
+    vital_space(Rp, Cp, Rnc, Cnc, T),
+    not direct_match_on_nc_plate(O, R, C, P, Rnc, Cnc, T).
+
+% La piastra P fa match diretto o bridge_pure con la torta NC
+direct_match_on_nc_plate(O, R, C, P, Rnc, Cnc, T) :-
+    choose(O, R, C),
+    plate_has_type(O, P, T),
+    plate_neigh(O, R, C, P, Rnc, Cnc),
+    occ_type(Rnc, Cnc, T).
+
+direct_match_on_nc_plate(O, R, C, P, Rnc, Cnc, T) :-
+    choose(O, R, C),
+    plate_bridge_pure(O, R, C, P, T),
+    plate_neigh(O, R, C, P, Rnc, Cnc),
+    occ_type(Rnc, Cnc, T).
+
+% -------------------------------------------------------------
+% 7. CENTRALITA E UTILITA
+% -------------------------------------------------------------
+diff_r(R, V) :- choose(_, R, _), max_row(MR), V = R * 2 - MR.
+abs_r(R, V)  :- diff_r(R, V), V >= 0.
+abs_r(R, NV) :- diff_r(R, V), V < 0, NV = -V.
+diff_c(C, V) :- choose(_, _, C), max_col(MC), V = C * 2 - MC.
+abs_c(C, V)  :- diff_c(C, V), V >= 0.
+abs_c(C, NV) :- diff_c(C, V), V < 0, NV = -V.
+dist_center(O, R, C, D) :- choose(O, R, C), abs_r(R, AR), abs_c(C, AC), D = AR + AC.
+
+has_any_match(O, R, C) :- direct_match(O, R, C, _).
+has_any_match(O, R, C) :- bridge_pure(O, R, C, _).
+
+% -------------------------------------------------------------
+% 8. WEAK CONSTRAINTS (LIVELLI DI PRIORITA)
+% -------------------------------------------------------------
+
+:~ choose(O,R,C), blocks_vital(O,R,C). [80@13, O]
+
+:~ choose(O,R,C), not has_any_match(O, R, C). [50@11, O]
+
+:~ choose(O,R,C), bridge(O,R,C, _). [-60@10, O]
+
+:~ choose(O,R,C), opt_size(O,2), #count{ T : direct_match(O,R,C,T) } >= 2. [-40@9, O]
+
+% Modificato per usare il calcolo specifico per piastra (evita duplicazioni e safety error)
+:~ choose(O,R,C), sum_fette_plate(O,R,C,P,T,S). [-S@7, O, P, T]
+
+:~ choose(O,R,C), dist_center(O,R,C,D). [D@4, O]
 
 #show choose/3.
 row(0..4).
 col(0..3).
 occ(0,0).
-occ_type(0,0,v).
-occ_count(0,0,v,1).
+occ_type(0,0,a).
+occ_count(0,0,a,1).
 occ(0,1).
-occ_type(0,1,b).
-occ_count(0,1,b,2).
+occ_type(0,1,e).
+occ_count(0,1,e,3).
 occ(0,2).
 occ_type(0,2,s).
-occ_count(0,2,s,1).
-occ(0,3).
-occ_type(0,3,a).
-occ_count(0,3,a,3).
+occ_count(0,2,s,2).
+empty(0,3).
 occ(1,0).
-occ_type(1,0,b).
-occ_count(1,0,b,1).
+occ_type(1,0,c).
+occ_count(1,0,c,2).
 occ(1,1).
-occ_type(1,1,l).
-occ_count(1,1,l,1).
+occ_type(1,1,v).
+occ_count(1,1,v,2).
 occ(1,2).
-occ_type(1,2,v).
-occ_count(1,2,v,4).
-empty(1,3).
-empty(2,0).
+occ_type(1,2,b).
+occ_count(1,2,b,1).
+occ(1,3).
+occ_type(1,3,d).
+occ_count(1,3,d,2).
+occ(2,0).
+occ_type(2,0,e).
+occ_count(2,0,e,2).
 occ(2,1).
 occ_type(2,1,a).
-occ_count(2,1,a,5).
-empty(2,2).
+occ_count(2,1,a,3).
+occ(2,2).
+occ_type(2,2,d).
+occ_count(2,2,d,3).
 occ(2,3).
-occ_type(2,3,b).
-occ_count(2,3,b,2).
+occ_type(2,3,l).
+occ_count(2,3,l,2).
 occ(3,0).
-occ_type(3,0,d).
-occ_count(3,0,d,2).
-occ_type(3,0,s).
-occ_count(3,0,s,2).
-occ(3,1).
-occ_type(3,1,l).
-occ_count(3,1,l,1).
+occ_type(3,0,a).
+occ_count(3,0,a,1).
+empty(3,1).
 occ(3,2).
-occ_type(3,2,c).
-occ_count(3,2,c,2).
+occ_type(3,2,b).
+occ_count(3,2,b,2).
 occ(3,3).
-occ_type(3,3,l).
-occ_count(3,3,l,2).
+occ_type(3,3,e).
+occ_count(3,3,e,1).
 occ(4,0).
-occ_type(4,0,l).
-occ_count(4,0,l,2).
+occ_type(4,0,e).
+occ_count(4,0,e,3).
 occ(4,1).
-occ_type(4,1,v).
-occ_count(4,1,v,3).
+occ_type(4,1,b).
+occ_count(4,1,b,2).
 occ(4,2).
-occ_type(4,2,d).
-occ_count(4,2,d,1).
+occ_type(4,2,s).
+occ_count(4,2,s,1).
+occ_type(4,2,v).
+occ_count(4,2,v,1).
 occ(4,3).
-occ_type(4,3,a).
-occ_count(4,3,a,2).
+occ_type(4,3,c).
+occ_count(4,3,c,5).
 opt(1).
 opt_orient(1,n).
 opt_size(1,1).
-opt_piece(1,0,l,3).
+opt_piece(1,0,s,3).
