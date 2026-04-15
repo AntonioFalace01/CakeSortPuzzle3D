@@ -50,10 +50,6 @@ class CakeSortASPSolver:
         enc = self._read_encoding()
         program.add_program(enc)
 
-        # domini — sintassi ASP pura, nessun oggetto
-        program.add_program(f"row(0..{state.rows - 1}).")
-        program.add_program(f"col(0..{state.cols - 1}).")
-
         # griglia tramite oggetti
         for r in range(state.rows):
             for c in range(state.cols):

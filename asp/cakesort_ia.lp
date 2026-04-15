@@ -1,5 +1,5 @@
 % -------------------------------------------------------------
-% 0. DEFINIZIONE GRIGLIA E SUPPORTI TECNICI
+%DEFINIZIONE GRIGLIA E SUPPORTI TECNICI
 % -------------------------------------------------------------
 row(0..4).
 col(0..3).
@@ -177,7 +177,7 @@ has_any_match(O, R, C) :- bridge_pure(O, R, C, _).
 % 8. WEAK CONSTRAINTS (LIVELLI DI PRIORITA)
 % -------------------------------------------------------------
 
-:~ choose(O,R,C), blocks_vital(O,R,C). [80@13, O]
+:~ choose(O,R,C), blocks_vital(O,R,C). [80@9, O]
 
 :~ choose(O,R,C), not has_any_match(O, R, C). [50@11, O]
 
