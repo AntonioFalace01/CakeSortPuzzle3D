@@ -47,9 +47,6 @@ plate_neigh(O, R, C, P, Rn, Cn) :-
     adj(Rp, Cp, Rn, Cn),
     not is_covered(O, Rn, Cn).
 
-% (Manteniamo ext_neigh globale se dovesse servire per fallback, ma usiamo plate_neigh)
-ext_neigh(O, R, C, Rn, Cn) :- plate_neigh(O, R, C, _, Rn, Cn).
-
 % -------------------------------------------------------------
 % 4. LOGICA STRATEGICA (Match e Bridge per piastra)
 % -------------------------------------------------------------
@@ -78,16 +75,6 @@ bridge(O, R, C, T) :- plate_bridge(O, R, C, _, T).
 
 grid_type(T) :- occ_type(_, _, T).
 
-% Bridge "puro" per singola piastra
-plate_bridge_pure(O, R, C, P, T) :-
-    choose(O, R, C),
-    place(O, _, _, P),
-    grid_type(T),
-    N = #count{ Rn, Cn : plate_neigh(O, R, C, P, Rn, Cn), occ_type(Rn, Cn, T) },
-    N >= 2.
-
-bridge_pure(O, R, C, T) :- plate_bridge_pure(O, R, C, _, T).
-
 % -------------------------------------------------------------
 % 5. COMPLETAMENTO TORTA (Per piastra)
 % -------------------------------------------------------------
@@ -102,12 +89,6 @@ sum_fette_plate(O, R, C, P, T, Total) :-
     plate_brought(O, P, T, Brought),
     InGrid = #sum{ Kn, Rn, Cn : plate_neigh(O, R, C, P, Rn, Cn), occ_count(Rn, Cn, T, Kn) },
     Total = Brought + InGrid.
-
-% Calcolo totale fette per bridge puro su specifica piastra
-sum_fette_bridge_plate(O, R, C, P, T, Total) :-
-    plate_bridge_pure(O, R, C, P, T),
-    not plate_has_type(O, P, T),
-    Total = #sum{ Kn, Rn, Cn : plate_neigh(O, R, C, P, Rn, Cn), occ_count(Rn, Cn, T, Kn) }.
 
 can_complete(O, R, C) :- sum_fette_plate(O, R, C, _, _, Tot), Tot >= 6.
 can_complete(O, R, C) :- sum_fette_bridge_plate(O, R, C, _, _, Tot), Tot >= 6.
@@ -143,12 +124,6 @@ occupies_cell_plate(O, R, C, Rp, Cp, P) :-
 direct_match_on_nc_plate(O, R, C, P, Rnc, Cnc, T) :-
     choose(O, R, C),
     plate_has_type(O, P, T),
-    plate_neigh(O, R, C, P, Rnc, Cnc),
-    occ_type(Rnc, Cnc, T).
-
-direct_match_on_nc_plate(O, R, C, P, Rnc, Cnc, T) :-
-    choose(O, R, C),
-    plate_bridge_pure(O, R, C, P, T),
     plate_neigh(O, R, C, P, Rnc, Cnc),
     occ_type(Rnc, Cnc, T).
 
@@ -194,7 +169,6 @@ abs_c(C, NV) :- diff_c(C, V), V < 0, NV = -V.
 dist_center(O, R, C, D) :- choose(O, R, C), abs_r(R, AR), abs_c(C, AC), D = AR + AC.
 
 has_any_match(O, R, C) :- direct_match(O, R, C, _).
-has_any_match(O, R, C) :- bridge_pure(O, R, C, _).
 
 % -------------------------------------------------------------
 % 8. WEAK CONSTRAINTS (LIVELLI DI PRIORITA)
