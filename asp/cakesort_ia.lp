@@ -108,10 +108,6 @@ vital_space(Rn, Cn, R, C, T) :-
     free_adj_nc(R, C, T, Rn, Cn),
     free_adj_count(R, C, T, 1).
 
-% Tracciamo QUALE piastra occupa lo spazio
-occupies_cell_plate(O, R, C, Rp, Cp, P) :-
-    choose(O, R, C),
-    place(O, Rp, Cp, P).
 
 % La piastra P fa match diretto con la torta NC in (Rnc,Cnc) di tipo T
 direct_match_on_nc_plate(O, R, C, P, Rnc, Cnc, T) :-
@@ -126,14 +122,14 @@ direct_match_on_nc_plate(O, R, C, P, Rnc, Cnc, T) :-
 % In questo caso bloccare (Rp,Cp) è accettabile perché stai completando
 % comunque una torta near-complete attraverso quella stessa cella.
 completes_other_nc(O, R, C, P, Rp, Cp, Rnc, Cnc, T) :-
-    occupies_cell_plate(O, R, C, Rp, Cp, P),
+    place(O,Rp,Cp,P),
     vital_space(Rp, Cp, Rnc, Cnc, T),
     vital_space(Rp, Cp, Rnc2, Cnc2, T2),
     Rnc2 != Rnc,
     direct_match_on_nc_plate(O, R, C, P, Rnc2, Cnc2, T2).
 
 completes_other_nc(O, R, C, P, Rp, Cp, Rnc, Cnc, T) :-
-    occupies_cell_plate(O, R, C, Rp, Cp, P),
+    place(O,Rp,Cp,P),
     vital_space(Rp, Cp, Rnc, Cnc, T),
     vital_space(Rp, Cp, Rnc2, Cnc2, T2),
     Rnc2 = Rnc,
@@ -145,7 +141,8 @@ completes_other_nc(O, R, C, P, Rp, Cp, Rnc, Cnc, T) :-
 % - NON fa match con quella torta NC
 % - E NON sta completando un'altra torta NC sulla stessa cella
 blocks_vital(O, R, C) :-
-    occupies_cell_plate(O, R, C, Rp, Cp, P),
+    choose(O, R, C),
+    place(O, Rp, Cp, P),
     vital_space(Rp, Cp, Rnc, Cnc, T),
     not direct_match_on_nc_plate(O, R, C, P, Rnc, Cnc, T),
     not completes_other_nc(O, R, C, P, Rp, Cp, Rnc, Cnc, T).
