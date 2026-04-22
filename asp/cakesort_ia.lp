@@ -163,7 +163,6 @@ has_any_match(O, R, C) :- bridge(O, R, C, _).
 % -------------------------------------------------------------
 % 8. WEAK CONSTRAINTS (LIVELLI DI PRIORITA)
 % -------------------------------------------------------------
-
 :~ choose(O,R,C), blocks_vital(O,R,C). [80@9, O]
 
 :~ choose(O,R,C), not has_any_match(O, R, C). [50@11, O]
@@ -172,7 +171,6 @@ has_any_match(O, R, C) :- bridge(O, R, C, _).
 
 :~ choose(O,R,C), opt_size(O,2), #count{ T : direct_match(O,R,C,T) } >= 2. [-40@9, O]
 
-% Modificato per usare il calcolo specifico per piastra (evita duplicazioni e safety error)
 :~ choose(O,R,C), sum_fette_plate(O,R,C,P,T,S). [-S@7, O, P, T]
 
 :~ choose(O,R,C), dist_center(O,R,C,D). [D@4, O]
