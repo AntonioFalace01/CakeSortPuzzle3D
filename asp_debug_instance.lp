@@ -1,9 +1,9 @@
 % -------------------------------------------------------------
-% 0. DEFINIZIONE GRIGLIA E SUPPORTI TECNICI
+%DEFINIZIONE GRIGLIA E SUPPORTI TECNICI
 % -------------------------------------------------------------
 row(0..4).
 col(0..3).
-idx(0..10).
+idx(0..1).
 max_row(4).
 max_col(3).
 total_cells(20).
@@ -177,7 +177,7 @@ has_any_match(O, R, C) :- bridge_pure(O, R, C, _).
 % 8. WEAK CONSTRAINTS (LIVELLI DI PRIORITA)
 % -------------------------------------------------------------
 
-:~ choose(O,R,C), blocks_vital(O,R,C). [80@13, O]
+:~ choose(O,R,C), blocks_vital(O,R,C). [80@9, O]
 
 :~ choose(O,R,C), not has_any_match(O, R, C). [50@11, O]
 
@@ -193,11 +193,11 @@ has_any_match(O, R, C) :- bridge_pure(O, R, C, _).
 #show choose/3.
 
 % -------------------------------------------------------------
-% 0. DEFINIZIONE GRIGLIA E SUPPORTI TECNICI
+%DEFINIZIONE GRIGLIA E SUPPORTI TECNICI
 % -------------------------------------------------------------
 row(0..4).
 col(0..3).
-idx(0..10).
+idx(0..1).
 max_row(4).
 max_col(3).
 total_cells(20).
@@ -371,7 +371,7 @@ has_any_match(O, R, C) :- bridge_pure(O, R, C, _).
 % 8. WEAK CONSTRAINTS (LIVELLI DI PRIORITA)
 % -------------------------------------------------------------
 
-:~ choose(O,R,C), blocks_vital(O,R,C). [80@13, O]
+:~ choose(O,R,C), blocks_vital(O,R,C). [80@9, O]
 
 :~ choose(O,R,C), not has_any_match(O, R, C). [50@11, O]
 
@@ -385,67 +385,63 @@ has_any_match(O, R, C) :- bridge_pure(O, R, C, _).
 :~ choose(O,R,C), dist_center(O,R,C,D). [D@4, O]
 
 #show choose/3.
-row(0..4).
-col(0..3).
-occ(0,0).
-occ_type(0,0,a).
-occ_count(0,0,a,1).
-occ(0,1).
-occ_type(0,1,e).
-occ_count(0,1,e,3).
-occ(0,2).
-occ_type(0,2,s).
-occ_count(0,2,s,2).
+empty(0,0).
+empty(0,1).
+empty(0,2).
 empty(0,3).
 occ(1,0).
-occ_type(1,0,c).
-occ_count(1,0,c,2).
+occ_type(1,0,d).
+occ_count(1,0,d,1).
+occ_type(1,0,s).
+occ_count(1,0,s,1).
 occ(1,1).
-occ_type(1,1,v).
-occ_count(1,1,v,2).
+occ_type(1,1,c).
+occ_count(1,1,c,1).
 occ(1,2).
 occ_type(1,2,b).
-occ_count(1,2,b,1).
+occ_count(1,2,b,3).
 occ(1,3).
-occ_type(1,3,d).
-occ_count(1,3,d,2).
+occ_type(1,3,s).
+occ_count(1,3,s,1).
 occ(2,0).
-occ_type(2,0,e).
-occ_count(2,0,e,2).
+occ_type(2,0,c).
+occ_count(2,0,c,1).
 occ(2,1).
-occ_type(2,1,a).
-occ_count(2,1,a,3).
+occ_type(2,1,l).
+occ_count(2,1,l,5).
 occ(2,2).
-occ_type(2,2,d).
-occ_count(2,2,d,3).
-occ(2,3).
-occ_type(2,3,l).
-occ_count(2,3,l,2).
+occ_type(2,2,c).
+occ_count(2,2,c,1).
+empty(2,3).
 occ(3,0).
-occ_type(3,0,a).
-occ_count(3,0,a,1).
-empty(3,1).
+occ_type(3,0,b).
+occ_count(3,0,b,1).
+occ(3,1).
+occ_type(3,1,v).
+occ_count(3,1,v,4).
 occ(3,2).
-occ_type(3,2,b).
-occ_count(3,2,b,2).
-occ(3,3).
-occ_type(3,3,e).
-occ_count(3,3,e,1).
+occ_type(3,2,a).
+occ_count(3,2,a,2).
+empty(3,3).
 occ(4,0).
-occ_type(4,0,e).
-occ_count(4,0,e,3).
+occ_type(4,0,s).
+occ_count(4,0,s,3).
 occ(4,1).
-occ_type(4,1,b).
-occ_count(4,1,b,2).
+occ_type(4,1,c).
+occ_count(4,1,c,2).
 occ(4,2).
-occ_type(4,2,s).
-occ_count(4,2,s,1).
-occ_type(4,2,v).
-occ_count(4,2,v,1).
+occ_type(4,2,e).
+occ_count(4,2,e,3).
 occ(4,3).
-occ_type(4,3,c).
-occ_count(4,3,c,5).
+occ_type(4,3,l).
+occ_count(4,3,l,5).
+opt(0).
+opt_orient(0,v).
+opt_size(0,2).
+opt_piece(0,0,l,1).
+opt_piece(0,0,a,2).
+opt_piece(0,1,v,1).
 opt(1).
 opt_orient(1,n).
 opt_size(1,1).
-opt_piece(1,0,s,3).
+opt_piece(1,0,a,3).

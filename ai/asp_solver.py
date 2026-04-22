@@ -142,13 +142,14 @@ class CakeSortASPSolver:
                     f.write("\n")
                 f.write(program.get_programs())
 
+
+        self.handler.add_program(program)
+        answer_sets = self.handler.start_sync()
+
         if debug:
             print("=== FATTI PASSATI A DLV2 ===")
             print(program.get_programs())
             print("=== FINE FATTI ===")
-
-        self.handler.add_program(program)
-        answer_sets = self.handler.start_sync()
 
         if debug:
             print("=== RAW OUTPUT DLV2 ===")
@@ -164,9 +165,6 @@ class CakeSortASPSolver:
             else:
                 print("Nessun answer set ottimale trovato")
             print("=== FINE ANSWER SETS ===")
-
-        self.handler.add_program(program)
-        answer_sets = self.handler.start_sync()
 
         best = None
         optimal = answer_sets.get_optimal_answer_sets()

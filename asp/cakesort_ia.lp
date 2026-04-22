@@ -6,7 +6,6 @@ col(0..3).
 idx(0..1).
 max_row(4).
 max_col(3).
-total_cells(20).
 
 % -------------------------------------------------------------
 % 1. GENERATE (Scelta della mossa)
@@ -79,19 +78,16 @@ grid_type(T) :- occ_type(_, _, T).
 % 5. COMPLETAMENTO TORTA (Per piastra)
 % -------------------------------------------------------------
 
-plate_brought(O, P, T, Brought) :-
-    plate_has_type(O, P, T),
-    opt_piece(O, P, T, Brought).
+
 
 % Calcolo totale fette per mosse con direct_match verificato SU QUELLA PIASTRA
 sum_fette_plate(O, R, C, P, T, Total) :-
     plate_direct_match(O, R, C, P, T),
-    plate_brought(O, P, T, Brought),
+    opt_piece(O, P, T, Brought),
     InGrid = #sum{ Kn, Rn, Cn : plate_neigh(O, R, C, P, Rn, Cn), occ_count(Rn, Cn, T, Kn) },
     Total = Brought + InGrid.
 
 can_complete(O, R, C) :- sum_fette_plate(O, R, C, _, _, Tot), Tot >= 6.
-can_complete(O, R, C) :- sum_fette_bridge_plate(O, R, C, _, _, Tot), Tot >= 6.
 
 some_completion_exists :- can_complete(_, _, _).
 :- some_completion_exists, choose(O, R, C), not can_complete(O, R, C).
