@@ -61,7 +61,6 @@ direct_match(O, R, C, T) :- plate_direct_match(O, R, C, _, T).
 
 % La piastra P contiene T
 plate_has_type(O, P, T) :- opt_piece(O, P, T, K), K > 0.
-has_type(O, T) :- plate_has_type(O, _, T).
 
 % Bridge per singola piastra
 plate_bridge(O, R, C, P, T) :-
@@ -71,8 +70,6 @@ plate_bridge(O, R, C, P, T) :-
     N >= 2.
 
 bridge(O, R, C, T) :- plate_bridge(O, R, C, _, T).
-
-grid_type(T) :- occ_type(_, _, T).
 
 % -------------------------------------------------------------
 % 5. COMPLETAMENTO TORTA (Per piastra)
