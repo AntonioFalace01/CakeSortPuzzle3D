@@ -6,7 +6,6 @@ col(0..3).
 idx(0..1).
 max_row(4).
 max_col(3).
-total_cells(20).
 
 % -------------------------------------------------------------
 % 1. GENERATE (Scelta della mossa)
@@ -47,9 +46,6 @@ plate_neigh(O, R, C, P, Rn, Cn) :-
     adj(Rp, Cp, Rn, Cn),
     not is_covered(O, Rn, Cn).
 
-% (Manteniamo ext_neigh globale se dovesse servire per fallback, ma usiamo plate_neigh)
-ext_neigh(O, R, C, Rn, Cn) :- plate_neigh(O, R, C, _, Rn, Cn).
-
 % -------------------------------------------------------------
 % 4. LOGICA STRATEGICA (Match e Bridge per piastra)
 % -------------------------------------------------------------
@@ -65,7 +61,6 @@ direct_match(O, R, C, T) :- plate_direct_match(O, R, C, _, T).
 
 % La piastra P contiene T
 plate_has_type(O, P, T) :- opt_piece(O, P, T, K), K > 0.
-has_type(O, T) :- plate_has_type(O, _, T).
 
 % Bridge per singola piastra
 plate_bridge(O, R, C, P, T) :-
@@ -76,41 +71,20 @@ plate_bridge(O, R, C, P, T) :-
 
 bridge(O, R, C, T) :- plate_bridge(O, R, C, _, T).
 
-grid_type(T) :- occ_type(_, _, T).
-
-% Bridge "puro" per singola piastra
-plate_bridge_pure(O, R, C, P, T) :-
-    choose(O, R, C),
-    place(O, _, _, P),
-    grid_type(T),
-    N = #count{ Rn, Cn : plate_neigh(O, R, C, P, Rn, Cn), occ_type(Rn, Cn, T) },
-    N >= 2.
-
-bridge_pure(O, R, C, T) :- plate_bridge_pure(O, R, C, _, T).
-
 % -------------------------------------------------------------
 % 5. COMPLETAMENTO TORTA (Per piastra)
 % -------------------------------------------------------------
 
-plate_brought(O, P, T, Brought) :-
-    plate_has_type(O, P, T),
-    opt_piece(O, P, T, Brought).
+
 
 % Calcolo totale fette per mosse con direct_match verificato SU QUELLA PIASTRA
 sum_fette_plate(O, R, C, P, T, Total) :-
     plate_direct_match(O, R, C, P, T),
-    plate_brought(O, P, T, Brought),
+    opt_piece(O, P, T, Brought),
     InGrid = #sum{ Kn, Rn, Cn : plate_neigh(O, R, C, P, Rn, Cn), occ_count(Rn, Cn, T, Kn) },
     Total = Brought + InGrid.
 
-% Calcolo totale fette per bridge puro su specifica piastra
-sum_fette_bridge_plate(O, R, C, P, T, Total) :-
-    plate_bridge_pure(O, R, C, P, T),
-    not plate_has_type(O, P, T),
-    Total = #sum{ Kn, Rn, Cn : plate_neigh(O, R, C, P, Rn, Cn), occ_count(Rn, Cn, T, Kn) }.
-
 can_complete(O, R, C) :- sum_fette_plate(O, R, C, _, _, Tot), Tot >= 6.
-can_complete(O, R, C) :- sum_fette_bridge_plate(O, R, C, _, _, Tot), Tot >= 6.
 
 some_completion_exists :- can_complete(_, _, _).
 :- some_completion_exists, choose(O, R, C), not can_complete(O, R, C).
@@ -139,25 +113,42 @@ occupies_cell_plate(O, R, C, Rp, Cp, P) :-
     choose(O, R, C),
     place(O, Rp, Cp, P).
 
-% La mossa blocca lo spazio se la SPECIFICA PIASTRA che cade nel buco vitale
-% NON fa match diretto su quella torta near complete
-blocks_vital(O, R, C) :-
-    occupies_cell_plate(O, R, C, Rp, Cp, P),
-    vital_space(Rp, Cp, Rnc, Cnc, T),
-    not direct_match_on_nc_plate(O, R, C, P, Rnc, Cnc, T).
-
-% La piastra P fa match diretto o bridge_pure con la torta NC
+% La piastra P fa match diretto con la torta NC in (Rnc,Cnc) di tipo T
 direct_match_on_nc_plate(O, R, C, P, Rnc, Cnc, T) :-
     choose(O, R, C),
     plate_has_type(O, P, T),
     plate_neigh(O, R, C, P, Rnc, Cnc),
     occ_type(Rnc, Cnc, T).
 
-direct_match_on_nc_plate(O, R, C, P, Rnc, Cnc, T) :-
-    choose(O, R, C),
-    plate_bridge_pure(O, R, C, P, T),
-    plate_neigh(O, R, C, P, Rnc, Cnc),
-    occ_type(Rnc, Cnc, T).
+% NUOVO: la piastra P, pur non matchando la torta NC in (Rnc,Cnc,T),
+% completa un'ALTRA torta near_complete (Rnc2,Cnc2,T2) che condivide
+% la stessa cella vitale (Rp,Cp).
+% In questo caso bloccare (Rp,Cp) è accettabile perché stai completando
+% comunque una torta near-complete attraverso quella stessa cella.
+completes_other_nc(O, R, C, P, Rp, Cp, Rnc, Cnc, T) :-
+    occupies_cell_plate(O, R, C, Rp, Cp, P),
+    vital_space(Rp, Cp, Rnc, Cnc, T),
+    vital_space(Rp, Cp, Rnc2, Cnc2, T2),
+    Rnc2 != Rnc,
+    direct_match_on_nc_plate(O, R, C, P, Rnc2, Cnc2, T2).
+
+completes_other_nc(O, R, C, P, Rp, Cp, Rnc, Cnc, T) :-
+    occupies_cell_plate(O, R, C, Rp, Cp, P),
+    vital_space(Rp, Cp, Rnc, Cnc, T),
+    vital_space(Rp, Cp, Rnc2, Cnc2, T2),
+    Rnc2 = Rnc,
+    Cnc2 != Cnc,
+    direct_match_on_nc_plate(O, R, C, P, Rnc2, Cnc2, T2).
+
+% La mossa blocca lo spazio vitale SE:
+% - la piastra P cade nella cella vitale di (Rnc,Cnc,T)
+% - NON fa match con quella torta NC
+% - E NON sta completando un'altra torta NC sulla stessa cella
+blocks_vital(O, R, C) :-
+    occupies_cell_plate(O, R, C, Rp, Cp, P),
+    vital_space(Rp, Cp, Rnc, Cnc, T),
+    not direct_match_on_nc_plate(O, R, C, P, Rnc, Cnc, T),
+    not completes_other_nc(O, R, C, P, Rp, Cp, Rnc, Cnc, T).
 
 % -------------------------------------------------------------
 % 7. CENTRALITA E UTILITA
@@ -171,8 +162,7 @@ abs_c(C, NV) :- diff_c(C, V), V < 0, NV = -V.
 dist_center(O, R, C, D) :- choose(O, R, C), abs_r(R, AR), abs_c(C, AC), D = AR + AC.
 
 has_any_match(O, R, C) :- direct_match(O, R, C, _).
-has_any_match(O, R, C) :- bridge_pure(O, R, C, _).
-
+has_any_match(O, R, C) :- bridge(O, R, C, _).
 % -------------------------------------------------------------
 % 8. WEAK CONSTRAINTS (LIVELLI DI PRIORITA)
 % -------------------------------------------------------------
@@ -200,7 +190,6 @@ col(0..3).
 idx(0..1).
 max_row(4).
 max_col(3).
-total_cells(20).
 
 % -------------------------------------------------------------
 % 1. GENERATE (Scelta della mossa)
@@ -241,9 +230,6 @@ plate_neigh(O, R, C, P, Rn, Cn) :-
     adj(Rp, Cp, Rn, Cn),
     not is_covered(O, Rn, Cn).
 
-% (Manteniamo ext_neigh globale se dovesse servire per fallback, ma usiamo plate_neigh)
-ext_neigh(O, R, C, Rn, Cn) :- plate_neigh(O, R, C, _, Rn, Cn).
-
 % -------------------------------------------------------------
 % 4. LOGICA STRATEGICA (Match e Bridge per piastra)
 % -------------------------------------------------------------
@@ -259,7 +245,6 @@ direct_match(O, R, C, T) :- plate_direct_match(O, R, C, _, T).
 
 % La piastra P contiene T
 plate_has_type(O, P, T) :- opt_piece(O, P, T, K), K > 0.
-has_type(O, T) :- plate_has_type(O, _, T).
 
 % Bridge per singola piastra
 plate_bridge(O, R, C, P, T) :-
@@ -270,41 +255,20 @@ plate_bridge(O, R, C, P, T) :-
 
 bridge(O, R, C, T) :- plate_bridge(O, R, C, _, T).
 
-grid_type(T) :- occ_type(_, _, T).
-
-% Bridge "puro" per singola piastra
-plate_bridge_pure(O, R, C, P, T) :-
-    choose(O, R, C),
-    place(O, _, _, P),
-    grid_type(T),
-    N = #count{ Rn, Cn : plate_neigh(O, R, C, P, Rn, Cn), occ_type(Rn, Cn, T) },
-    N >= 2.
-
-bridge_pure(O, R, C, T) :- plate_bridge_pure(O, R, C, _, T).
-
 % -------------------------------------------------------------
 % 5. COMPLETAMENTO TORTA (Per piastra)
 % -------------------------------------------------------------
 
-plate_brought(O, P, T, Brought) :-
-    plate_has_type(O, P, T),
-    opt_piece(O, P, T, Brought).
+
 
 % Calcolo totale fette per mosse con direct_match verificato SU QUELLA PIASTRA
 sum_fette_plate(O, R, C, P, T, Total) :-
     plate_direct_match(O, R, C, P, T),
-    plate_brought(O, P, T, Brought),
+    opt_piece(O, P, T, Brought),
     InGrid = #sum{ Kn, Rn, Cn : plate_neigh(O, R, C, P, Rn, Cn), occ_count(Rn, Cn, T, Kn) },
     Total = Brought + InGrid.
 
-% Calcolo totale fette per bridge puro su specifica piastra
-sum_fette_bridge_plate(O, R, C, P, T, Total) :-
-    plate_bridge_pure(O, R, C, P, T),
-    not plate_has_type(O, P, T),
-    Total = #sum{ Kn, Rn, Cn : plate_neigh(O, R, C, P, Rn, Cn), occ_count(Rn, Cn, T, Kn) }.
-
 can_complete(O, R, C) :- sum_fette_plate(O, R, C, _, _, Tot), Tot >= 6.
-can_complete(O, R, C) :- sum_fette_bridge_plate(O, R, C, _, _, Tot), Tot >= 6.
 
 some_completion_exists :- can_complete(_, _, _).
 :- some_completion_exists, choose(O, R, C), not can_complete(O, R, C).
@@ -333,25 +297,42 @@ occupies_cell_plate(O, R, C, Rp, Cp, P) :-
     choose(O, R, C),
     place(O, Rp, Cp, P).
 
-% La mossa blocca lo spazio se la SPECIFICA PIASTRA che cade nel buco vitale
-% NON fa match diretto su quella torta near complete
-blocks_vital(O, R, C) :-
-    occupies_cell_plate(O, R, C, Rp, Cp, P),
-    vital_space(Rp, Cp, Rnc, Cnc, T),
-    not direct_match_on_nc_plate(O, R, C, P, Rnc, Cnc, T).
-
-% La piastra P fa match diretto o bridge_pure con la torta NC
+% La piastra P fa match diretto con la torta NC in (Rnc,Cnc) di tipo T
 direct_match_on_nc_plate(O, R, C, P, Rnc, Cnc, T) :-
     choose(O, R, C),
     plate_has_type(O, P, T),
     plate_neigh(O, R, C, P, Rnc, Cnc),
     occ_type(Rnc, Cnc, T).
 
-direct_match_on_nc_plate(O, R, C, P, Rnc, Cnc, T) :-
-    choose(O, R, C),
-    plate_bridge_pure(O, R, C, P, T),
-    plate_neigh(O, R, C, P, Rnc, Cnc),
-    occ_type(Rnc, Cnc, T).
+% NUOVO: la piastra P, pur non matchando la torta NC in (Rnc,Cnc,T),
+% completa un'ALTRA torta near_complete (Rnc2,Cnc2,T2) che condivide
+% la stessa cella vitale (Rp,Cp).
+% In questo caso bloccare (Rp,Cp) è accettabile perché stai completando
+% comunque una torta near-complete attraverso quella stessa cella.
+completes_other_nc(O, R, C, P, Rp, Cp, Rnc, Cnc, T) :-
+    occupies_cell_plate(O, R, C, Rp, Cp, P),
+    vital_space(Rp, Cp, Rnc, Cnc, T),
+    vital_space(Rp, Cp, Rnc2, Cnc2, T2),
+    Rnc2 != Rnc,
+    direct_match_on_nc_plate(O, R, C, P, Rnc2, Cnc2, T2).
+
+completes_other_nc(O, R, C, P, Rp, Cp, Rnc, Cnc, T) :-
+    occupies_cell_plate(O, R, C, Rp, Cp, P),
+    vital_space(Rp, Cp, Rnc, Cnc, T),
+    vital_space(Rp, Cp, Rnc2, Cnc2, T2),
+    Rnc2 = Rnc,
+    Cnc2 != Cnc,
+    direct_match_on_nc_plate(O, R, C, P, Rnc2, Cnc2, T2).
+
+% La mossa blocca lo spazio vitale SE:
+% - la piastra P cade nella cella vitale di (Rnc,Cnc,T)
+% - NON fa match con quella torta NC
+% - E NON sta completando un'altra torta NC sulla stessa cella
+blocks_vital(O, R, C) :-
+    occupies_cell_plate(O, R, C, Rp, Cp, P),
+    vital_space(Rp, Cp, Rnc, Cnc, T),
+    not direct_match_on_nc_plate(O, R, C, P, Rnc, Cnc, T),
+    not completes_other_nc(O, R, C, P, Rp, Cp, Rnc, Cnc, T).
 
 % -------------------------------------------------------------
 % 7. CENTRALITA E UTILITA
@@ -365,8 +346,7 @@ abs_c(C, NV) :- diff_c(C, V), V < 0, NV = -V.
 dist_center(O, R, C, D) :- choose(O, R, C), abs_r(R, AR), abs_c(C, AC), D = AR + AC.
 
 has_any_match(O, R, C) :- direct_match(O, R, C, _).
-has_any_match(O, R, C) :- bridge_pure(O, R, C, _).
-
+has_any_match(O, R, C) :- bridge(O, R, C, _).
 % -------------------------------------------------------------
 % 8. WEAK CONSTRAINTS (LIVELLI DI PRIORITA)
 % -------------------------------------------------------------
@@ -385,63 +365,35 @@ has_any_match(O, R, C) :- bridge_pure(O, R, C, _).
 :~ choose(O,R,C), dist_center(O,R,C,D). [D@4, O]
 
 #show choose/3.
-empty(0,0).
+occ(0,0).
+occ_type(0,0,c).
+occ_count(0,0,c,1).
 empty(0,1).
 empty(0,2).
 empty(0,3).
 occ(1,0).
-occ_type(1,0,d).
-occ_count(1,0,d,1).
 occ_type(1,0,s).
-occ_count(1,0,s,1).
-occ(1,1).
-occ_type(1,1,c).
-occ_count(1,1,c,1).
-occ(1,2).
-occ_type(1,2,b).
-occ_count(1,2,b,3).
-occ(1,3).
-occ_type(1,3,s).
-occ_count(1,3,s,1).
-occ(2,0).
-occ_type(2,0,c).
-occ_count(2,0,c,1).
+occ_count(1,0,s,2).
+empty(1,1).
+empty(1,2).
+empty(1,3).
+empty(2,0).
 occ(2,1).
-occ_type(2,1,l).
-occ_count(2,1,l,5).
+occ_type(2,1,c).
+occ_count(2,1,c,1).
 occ(2,2).
-occ_type(2,2,c).
-occ_count(2,2,c,1).
+occ_type(2,2,s).
+occ_count(2,2,s,5).
 empty(2,3).
-occ(3,0).
-occ_type(3,0,b).
-occ_count(3,0,b,1).
-occ(3,1).
-occ_type(3,1,v).
-occ_count(3,1,v,4).
-occ(3,2).
-occ_type(3,2,a).
-occ_count(3,2,a,2).
+empty(3,0).
+empty(3,1).
+empty(3,2).
 empty(3,3).
-occ(4,0).
-occ_type(4,0,s).
-occ_count(4,0,s,3).
-occ(4,1).
-occ_type(4,1,c).
-occ_count(4,1,c,2).
-occ(4,2).
-occ_type(4,2,e).
-occ_count(4,2,e,3).
-occ(4,3).
-occ_type(4,3,l).
-occ_count(4,3,l,5).
+empty(4,0).
+empty(4,1).
+empty(4,2).
+empty(4,3).
 opt(0).
-opt_orient(0,v).
-opt_size(0,2).
-opt_piece(0,0,l,1).
-opt_piece(0,0,a,2).
-opt_piece(0,1,v,1).
-opt(1).
-opt_orient(1,n).
-opt_size(1,1).
-opt_piece(1,0,a,3).
+opt_orient(0,n).
+opt_size(0,1).
+opt_piece(0,0,s,1).

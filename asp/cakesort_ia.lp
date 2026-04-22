@@ -136,7 +136,7 @@ completes_other_nc(O, R, C, P, Rp, Cp, Rnc, Cnc, T) :-
     occupies_cell_plate(O, R, C, Rp, Cp, P),
     vital_space(Rp, Cp, Rnc, Cnc, T),
     vital_space(Rp, Cp, Rnc2, Cnc2, T2),
-    Rnc2 == Rnc,
+    Rnc2 = Rnc,
     Cnc2 != Cnc,
     direct_match_on_nc_plate(O, R, C, P, Rnc2, Cnc2, T2).
 
@@ -162,7 +162,7 @@ abs_c(C, NV) :- diff_c(C, V), V < 0, NV = -V.
 dist_center(O, R, C, D) :- choose(O, R, C), abs_r(R, AR), abs_c(C, AC), D = AR + AC.
 
 has_any_match(O, R, C) :- direct_match(O, R, C, _).
-
+has_any_match(O, R, C) :- bridge(O, R, C, _).
 % -------------------------------------------------------------
 % 8. WEAK CONSTRAINTS (LIVELLI DI PRIORITA)
 % -------------------------------------------------------------
