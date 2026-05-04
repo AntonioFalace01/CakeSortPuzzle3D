@@ -1,19 +1,6 @@
 from embasp.languages.predicate import Predicate
 from embasp.languages.asp.symbolic_constant import SymbolicConstant
 
-# cella vuota nella griglia
-class Empty(Predicate):
-    predicate_name = "empty"
-
-    def __init__(self):
-        self.R = 0
-        self.C = 0
-        super().__init__([("R", int), ("C", int)])
-
-    def get_R(self): return self.R
-    def set_R(self, v): self.R = v
-    def get_C(self): return self.C
-    def set_C(self, v): self.C = v
 
 # cella occupata nella griglia
 class Occ(Predicate):

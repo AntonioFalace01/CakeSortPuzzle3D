@@ -5,7 +5,7 @@ from embasp.languages.asp.asp_input_program import ASPInputProgram
 from embasp.languages.asp.asp_mapper import ASPMapper
 from embasp.platforms.desktop.desktop_handler import DesktopHandler
 from ai.asp_predicates import (
-    Empty, Occ, OccType, OccCount,
+    Occ, OccType, OccCount,
     Opt, OptOrient, OptSize, OptPiece,
     Choose
 )
@@ -29,7 +29,6 @@ class CakeSortASPSolver:
 
         self.handler = DesktopHandler(DLV2DesktopService(self.solver_path))
 
-        ASPMapper.get_instance().register_class(Empty)
         ASPMapper.get_instance().register_class(Occ)
         ASPMapper.get_instance().register_class(OccType)
         ASPMapper.get_instance().register_class(OccCount)
@@ -54,12 +53,7 @@ class CakeSortASPSolver:
         for r in range(state.rows):
             for c in range(state.cols):
                 plate = state.grid[r][c]
-                if plate is None:
-                    e = Empty()
-                    e.set_R(r)
-                    e.set_C(c)
-                    program.add_object_input(e)
-                else:
+                if plate is not None:
                     o = Occ()
                     o.set_R(r)
                     o.set_C(c)
@@ -129,34 +123,9 @@ class CakeSortASPSolver:
                         op_piece.set_K(piece.count)
                         program.add_object_input(op_piece)
 
-        if not valid_solver_indices:
-            if debug:
-                print("[AI] Solver: nessuna opzione con mosse legali -> ritorno None")
-            return None
-
-        if debug:
-            tmp_path = os.path.join(self.project_root, "asp_debug_instance.lp")
-            with open(tmp_path, "w", encoding="utf-8") as f:
-                f.write(enc)
-                if not enc.endswith("\n"):
-                    f.write("\n")
-                f.write(program.get_programs())
-
 
         self.handler.add_program(program)
         answer_sets = self.handler.start_sync()
-
-        if debug:
-            print("=== FATTI PASSATI A DLV2 ===")
-            print(program.get_programs())
-            print("=== RAW OUTPUT DLV2 ===")
-            print(answer_sets.get_answer_sets_string())
-            print("=== FINE RAW OUTPUT ===")
-            print("=== TUTTI GLI ANSWER SETS ===")
-            all_as = answer_sets.get_answer_sets()
-            for ans in all_as:
-                print(ans.get_atoms(), "COST:", ans.get_cost() if hasattr(ans, 'get_cost') else "?")
-            print("=== FINE TUTTI ===")
 
 
         best = None
