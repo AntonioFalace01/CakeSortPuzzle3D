@@ -417,12 +417,10 @@ class Game:
         self._start_next_slice_or_finalize()
 
     def _start_next_slice_or_finalize(self):
-        # ── FIX BUG 2: salta step fantasma (anim=None) aggiornando la griglia ──
         while self.slice_queue:
             step = self.slice_queue[0]
             if step["anim"] is not None:
                 break
-            # step fantasma: aggiorna solo la griglia visiva e avanza
             self.slice_queue.pop(0)
             self.display_grid = step["grid_during"]
             self._pending_grid_after = step["grid_after"]
@@ -430,7 +428,6 @@ class Game:
             if self._pending_grid_after is not None:
                 self.display_grid = self._pending_grid_after
                 self._pending_grid_after = None
-        # ────────────────────────────────────────────────────────────────────────
 
         if self.slice_queue:
             step = self.slice_queue.pop(0)
@@ -447,7 +444,7 @@ class Game:
                 self.ai_game_over = True
 
     def _launch_unlock_effect(self):
-        """Lancia l'UnlockEffect e il suono. Chiamato solo quando tutto il resto è finito."""
+        #Lancia l'UnlockEffect e il suono. Chiamato solo quando tutto il resto è finito.
         if self._pending_unlock_tipo is None:
             return
         self.unlock_effect = UnlockEffect(900, 700, self._pending_unlock_tipo)
@@ -580,7 +577,6 @@ class Game:
                 self._completed_cake_delay = None
                 self._start_next_slice_or_finalize()
 
-        # Burst confetti torta completata
         for eff in list(self.completion_effects):
             eff.update_burst(dt)
             eff.draw_burst(window)

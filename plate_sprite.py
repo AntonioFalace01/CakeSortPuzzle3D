@@ -16,7 +16,6 @@ class PlateSprite:
         self.offset = (0, 0)
         self.placed = False
 
-        # sync con griglia
         self.placed_cell = None
         self.visible = True
 

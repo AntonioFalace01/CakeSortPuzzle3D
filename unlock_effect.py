@@ -147,7 +147,7 @@ class UnlockEffect:
         return pygame.transform.smoothscale(raw, (size, size))
 
     def _build_card_base(self):
-        """Sfondo rosa pastello: da rosa caldo in alto a bianco rosato in basso."""
+        #Sfondo rosa pastello: da rosa caldo in alto a bianco rosato in basso.
         w, h = self.BOX_W, self.BOX_H
         surf = pygame.Surface((w, h), pygame.SRCALPHA)
 
@@ -331,7 +331,7 @@ class UnlockEffect:
         surface.blit(rotated, rotated.get_rect(center=(slice_cx, slice_cy)))
 
     def _draw_divider(self, surface, x, y, w, alpha, color=None):
-        """Linea orizzontale con fade ai bordi."""
+        #Linea orizzontale con fade ai bordi.
         col = color if color else self.mid
         ls = pygame.Surface((w, 2), pygame.SRCALPHA)
         for px in range(w):

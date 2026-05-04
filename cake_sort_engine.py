@@ -204,7 +204,7 @@ class GameState:
         return snap
 
     def _apply_event_to_grid(self, grid, tipo, count, from_pos, to_pos):
-        """Applica un singolo evento di movimento su una griglia-copia."""
+        #Applica un singolo evento di movimento su una griglia-copia.
         fr, fc = from_pos
         tr, tc = to_pos
         src = grid[fr][fc]
@@ -536,7 +536,7 @@ class GameState:
         return pos_a, pos_b
 
     def can_place_block(self, block, start_r, start_c):
-        """Controlla SOLO se il blocco entra e le celle sono libere (nessun merge)."""
+        #Controlla SOLO se il blocco entra e le celle sono libere (nessun merge).
         orientation = block["orientation"]
         plates = block["plates"]
 
@@ -634,7 +634,7 @@ class GameState:
         return moved
 
     def _count_neighbors_with_tipo(self, r, c, tipo, exclude_pos=None):
-        """Conta i vicini che hanno 'tipo', escludendo opzionalmente una posizione."""
+        #Conta i vicini che hanno 'tipo', escludendo opzionalmente una posizione.
         count = 0
         for nr, nc in self.neighbors4(r, c):
             if exclude_pos and (nr, nc) == exclude_pos:
@@ -833,7 +833,6 @@ class GameState:
                 else:
                     mixed_neighbors.append((nr, nc))
 
-            # Caso 1: bridge tra misti e un puro
             if pure_neighbors:
                 def piece_count_at(pos):
                     pl = self.grid[pos[0]][pos[1]]
@@ -843,8 +842,6 @@ class GameState:
 
                 target_pure = max(pure_neighbors, key=piece_count_at)
 
-                # ── FIX BUG 1: prima scarica gli ALTRI tipi del bridge bridge ──
-                # su vicini che li hanno già, per liberare slot nel bridge
                 bridge_plate = self.grid[pr][pc]
                 if bridge_plate:
                     for other_piece in list(bridge_plate.pieces):
@@ -858,7 +855,6 @@ class GameState:
                             if apl and apl.get_piece(other_piece.tipo) is not None:
                                 self._move_tipo((pr, pc), (anr, anc), other_piece.tipo)
                                 break
-                # ─────────────────────────────────────────────────────────────
 
                 # Poi attira i vicini misti sul bridge
                 for mn in mixed_neighbors:
@@ -881,7 +877,6 @@ class GameState:
                         if moved2 > 0:
                             changed_inner = True
 
-            # Caso 2: bridge tra due puri, nessun misto
             elif len(pure_neighbors) >= 2:
                 def piece_count_at(pos):
                     pl = self.grid[pos[0]][pos[1]]

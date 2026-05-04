@@ -120,7 +120,6 @@ def main(window):
                         stato = "game"
                         pygame.mixer.music.play(-1)
 
-        # ── RENDERING ─────────────────────────────────────────────────────────
 
         if stato == "menu_start":
             window.blit(sfondo_menu_start, (0, 0))
